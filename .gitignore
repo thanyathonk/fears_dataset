@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+
+# Secrets & local
+.env
+.env.*
+
+# Data & outputs (user generates these)
+data/
+logs/
+*.parquet
+*.csv
+*.csv.gz
+*.csv.gzip
+
+# SLURM logs
+slurm-*.out
+slurm-*.err
+
+# Cache
+*.pyc
+.pytest_cache/
+.cursor-server/
+
+# OS
+.DS_Store
+to_delete/

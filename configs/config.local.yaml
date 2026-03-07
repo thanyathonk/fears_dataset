@@ -1,0 +1,50 @@
+paths:
+  root: .
+  data_root: data
+  staging_root: data/staging
+  output_root: data/output
+  logs_root: logs
+  # OMOP vocabulary (copy from parent or download). Must contain vocabulary_SNOMED_MEDDRA_RxNorm_ATC/
+  vocab_root: data/vocab
+  cache_root: data/cache
+openfda:
+  # Bulk files are served from AWS S3/CDN (download.open.fda.gov) — not subject to
+  # the 240 req/min API rate limit. Safe range: 8–20 depending on network bandwidth.
+  # Override at runtime: S01_JOBS=15 bash scripts/step1_s01_fetch.sh
+  parallel_downloads: 10
+  chunk_size: 16777216
+  retry_attempts: 3
+  retry_backoff_seconds: 1.0
+cohorts:
+  age_cutoff: 21
+rxnorm:
+  concurrency: 10
+  throttle_seconds: 0.05
+chemistry:
+  include_drugbank: false
+llm:
+  enabled: false
+huggingface:
+  repo_id: your-username/can-drug-pipeline
+  private: true
+metadata:
+  owner: data-platform
+  max_rows_per_table: 0
+  prefer_er_tables: true
+  # Fallback path for ER tables in CSV format (if S02 parquet not present)
+  er_tables_path: data/er_tables
+  finalize_chunk_rows: 1000000
+stages:
+  s01_fetch_openfda: true
+  s02_entity_format: true
+  # Set s02_openfda_high_memory: true when RAM >= 80GB for faster, simpler S02 (no disk shards)
+  s02_openfda_high_memory: false
+  s03_join_partition_age: true
+  s05_split_adr: true
+  s06_map_omop_meddra: true
+  s06b_map_omop_meddra_full_hierarchy: true
+  s07_split_drug: true
+  s08_enrich_drug_identifiers: true
+  s09_finalize_merge_and_report: true
+  s10_package_deliverables: true
+

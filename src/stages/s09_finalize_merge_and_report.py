@@ -1,0 +1,1258 @@
+from __future__ import annotations
+
+"""Stage S09 – Final merge, filtering, and reporting outputs.
+
+Filtering criteria (moved from S09 for early filtering):
+1. Suspect drugs only (drug_characterization) - MOVED TO S03
+2. Qualified reporters only (exclude Unknown, Lawyer, Consumer) - MOVED TO S03
+
+Additional filtering in S09:
+3. Valid ingredient and medicinal_product (NOTE: For full_dataset, no ingredient_count or rxcui_tty filtering)
+4. MedDRA concept mapped
+"""
+
+from pathlib import Path
+from typing import Any, Dict, List
+
+import polars as pl
+from loguru import logger
+
+from src.utils.dq import dq_summary_markdown
+from src.utils.io import (
+    PipelineContext,
+    output_dataset_path,
+    stage_output_path,
+    write_manifest,
+)
+
+
+ADULT_COLUMNS = [
+    "safetyreportid",
+    "age_years",
+    "patient_sex",
+    "index_date",  # Primary timeline date (waterfall: mostrecent → lastupdate → receive)
+    "receive_date",
+    "mostrecent_receive_date",
+    "lastupdate_date",
+    "serious",
+    "congenital_anomali",
+    "death",
+    "disabling",
+    "hospitalization",
+    "life_threatening",
+    "other",
+    "reporter_country",
+    "reporter_company",
+    "reporter_qualification",
+    "medicinal_product",
+    "rxcui",
+    "mapping_method",  # ✅ วิธีที่ใช้หา (rxnav_direct, local_synonym, cid_title_fallback)
+    "ingredient",      # ✅ ชื่อ ingredient มาตรฐานจาก RxNav
+    "drug_characterization",
+    "drug_administration",
+    "drug_indication",
+    "reaction_meddrapt",
+    "reaction_outcome",
+    "meddra_concept_id",
+    "meddra_concept_code",
+    "meddra_soc_codes",    # List of SOC codes (PT can have multiple SOCs)
+    "meddra_soc_names",    # List of SOC names (PT can have multiple SOCs)
+]
+
+
+PEDIATRIC_COLUMNS = [
+    "safetyreportid",
+    "age_years",
+    "patient_sex",
+    "nichd",
+    "index_date",  # Primary timeline date (waterfall: mostrecent → lastupdate → receive)
+    "receive_date",
+    "mostrecent_receive_date",
+    "lastupdate_date",
+    "serious",
+    "congenital_anomali",
+    "death",
+    "disabling",
+    "hospitalization",
+    "life_threatening",
+    "other",
+    "reporter_country",
+    "reporter_company",
+    "reporter_qualification",
+    "medicinal_product",
+    "rxcui",
+    "mapping_method",  # ✅ วิธีที่ใช้หา (rxnav_direct, local_synonym, cid_title_fallback)
+    "ingredient",      # ✅ ชื่อ ingredient มาตรฐานจาก RxNav
+    "drug_characterization",
+    "drug_administration",
+    "drug_indication",
+    "reaction_meddrapt",
+    "reaction_outcome",
+    "meddra_concept_id",
+    "meddra_concept_code",
+    "meddra_soc_codes",    # List of SOC codes (PT can have multiple SOCs)
+    "meddra_soc_names",    # List of SOC names (PT can have multiple SOCs)
+]
+
+
+FILL_UNKNOWN_COLUMNS = [
+    "patient_sex",
+    "reaction_outcome",
+    "drug_administration",
+    "drug_indication",
+    "reporter_country",
+    "reporter_company",
+    "reporter_qualification",
+    "Drug characterization",
+]
+
+# Filter criteria for data quality
+# NOTE: SUSPECT_DRUG_VALUE removed - now includes both suspect and concomitant drugs
+EXCLUDED_REPORTERS = [
+    "Unknown",
+    "Lawyer",
+    "Consumer or non-health professional"
+]
+
+
+def _format_value(value: Any) -> str:
+    if isinstance(value, int):
+        return f"{value:,}"
+    if isinstance(value, float):
+        return f"{value:,.2f}"
+    if isinstance(value, Path):
+        return str(value)
+    return str(value)
+
+
+def _log_box(cohort: str, title: str, **fields: Any) -> None:
+    lines = [f"{name}: {_format_value(value)}" for name, value in fields.items()]
+    width = max(len(title), *(len(line) for line in lines)) if lines else len(title)
+    border = "─" * (width + 2)
+    prefix = f"[S09][{cohort}] "
+    rows = [
+        prefix + "┌" + border + "┐",
+        prefix + "│ " + title.ljust(width) + " │",
+    ]
+    if lines:
+        rows.append(prefix + "├" + "─" * (width + 2) + "┤")
+        rows.extend(
+            prefix + "│ " + line.ljust(width) + " │"
+            for line in lines
+        )
+    rows.append(prefix + "└" + border + "┘")
+    logger.info("\n" + "\n".join(rows))
+
+
+def _apply_meddra_filters(frame: pl.LazyFrame) -> pl.LazyFrame:
+    lf = frame
+    names = lf.collect_schema().names()
+    if "meddra_concept_id" in names:
+        lf = lf.filter(pl.col("meddra_concept_id").is_not_null())
+    return lf
+
+
+def _finalize_cohort_streaming(cohort: str, ctx: PipelineContext) -> Dict[str, int]:
+    clean_dir = stage_output_path(ctx, "s03_join_partition_age")
+    enrich_dir = stage_output_path(ctx, "s08_enrich_drug_identifiers")
+    mapping_dir = stage_output_path(ctx, "s06_map_omop_meddra")
+
+    clean_path = clean_dir / f"{cohort}_events_full_data.parquet"
+    enriched_path = enrich_dir / f"{cohort}_drugs_enriched_final_full_data.parquet"
+    dict_path = mapping_dir / cohort / "pt_soc_dictionary_full_data.parquet"
+
+    for path in (clean_path, enriched_path, dict_path):
+        if not path.exists():
+            raise FileNotFoundError(path)
+
+    clean_rows = (
+        pl.scan_parquet(str(clean_path)).select(pl.len()).collect(streaming=True).item()
+    )
+    # ✅ ใช้ columns หลักจาก S08: medicinal_product, rxcui, ingredients -> ingredient (string)
+    # ตรวจสอบ schema ก่อนเพื่อดูว่ามีคอลัมน์อะไรบ้างและประเภทข้อมูล
+    enriched_schema = pl.scan_parquet(str(enriched_path)).collect_schema()
+    has_is_selected_case = "is_selected_case" in enriched_schema
+    has_ingredients_right = "ingredients_right" in enriched_schema
+    
+    # ตรวจสอบว่า ingredients เป็น List หรือ String
+    ingredients_dtype = enriched_schema.get("ingredients")
+    is_ingredients_list = ingredients_dtype is not None and str(ingredients_dtype).startswith("List")
+    
+    # สร้างคอลัมน์ is_selected_case ตามเงื่อนไข
+    base_lf_stats = pl.scan_parquet(str(enriched_path))
+    if not has_is_selected_case:
+        base_lf_stats = base_lf_stats.with_columns(
+            pl.col("rxcui").is_not_null().cast(pl.Boolean).alias("is_selected_case")
+        )
+    else:
+        base_lf_stats = base_lf_stats.with_columns(
+            pl.col("is_selected_case").fill_null(pl.col("rxcui").is_not_null()).cast(pl.Boolean).alias("is_selected_case")
+        )
+    
+    # สร้างคอลัมน์ ingredient จาก ingredients หรือ ingredients_right
+    if has_ingredients_right:
+        # ใช้ ingredients_right (List) ถ้ามี
+        enriched_df_for_stats = (
+            base_lf_stats
+            .with_columns(
+                pl.when(pl.col("ingredients_right").list.len() > 0)
+                .then(pl.col("ingredients_right").list.first().cast(pl.Utf8))
+                .otherwise(None)
+                .alias("ingredient"),
+            )
+        )
+    elif is_ingredients_list:
+        # ใช้ ingredients ถ้าเป็น List
+        enriched_df_for_stats = (
+            base_lf_stats
+            .with_columns(
+                pl.when(pl.col("ingredients").list.len() > 0)
+                .then(pl.col("ingredients").list.first().cast(pl.Utf8))
+                .otherwise(None)
+                .alias("ingredient"),
+            )
+        )
+    else:
+        # ใช้ ingredients โดยตรงถ้าเป็น String
+        enriched_df_for_stats = (
+            base_lf_stats
+            .with_columns(
+                pl.col("ingredients").cast(pl.Utf8).alias("ingredient"),
+            )
+        )
+    
+    enriched_unique = (
+        enriched_df_for_stats
+        .select(
+            pl.col("medicinal_product").cast(pl.Utf8),
+            pl.col("ingredient").cast(pl.Utf8),
+            pl.col("is_selected_case").cast(pl.Boolean),
+        )
+        .filter(pl.col("is_selected_case") == True)
+        .filter(pl.col("ingredient").is_not_null())
+        .select(pl.col("ingredient").n_unique())
+        .collect(streaming=True)
+        .item()
+    )
+
+    _log_box(
+        cohort,
+        "Prepare lazy pipeline",
+        clean_rows=clean_rows,
+        candidate_drugs=enriched_unique,
+    )
+
+    target_columns = ADULT_COLUMNS if cohort == "adult" else PEDIATRIC_COLUMNS
+
+    clean_lf = (
+        pl.scan_parquet(str(clean_path))
+        .with_columns(
+            pl.col("medicinal_product").cast(pl.Utf8, strict=False),
+            pl.col("safetyreportid").cast(pl.Utf8, strict=False),
+            pl.col("reaction_meddrapt").cast(pl.Utf8, strict=False),
+        )
+    )
+    # ✅ ใช้ Main Columns จาก S08 Final (streaming function)
+    # แปลง ingredients เป็น ingredient (string) และสร้างคอลัมน์ที่จำเป็น
+    # ตรวจสอบ schema อีกครั้งสำหรับ enriched_lookup_lf
+    enriched_schema_lookup_stream = pl.scan_parquet(str(enriched_path)).collect_schema()
+    has_is_selected_case_stream = "is_selected_case" in enriched_schema_lookup_stream
+    has_mapping_method_stream = "mapping_method" in enriched_schema_lookup_stream
+    has_source_stream = "source" in enriched_schema_lookup_stream
+    has_ingredients_right_stream = "ingredients_right" in enriched_schema_lookup_stream
+    
+    # ตรวจสอบว่า ingredients เป็น List หรือ String
+    ingredients_dtype_stream = enriched_schema_lookup_stream.get("ingredients")
+    is_ingredients_list_stream = ingredients_dtype_stream is not None and str(ingredients_dtype_stream).startswith("List")
+    
+    # สร้าง base lazyframe และคอลัมน์ที่จำเป็น
+    base_lf_stream = pl.scan_parquet(str(enriched_path))
+    
+    # สร้างคอลัมน์ is_selected_case
+    if not has_is_selected_case_stream:
+        base_lf_stream = base_lf_stream.with_columns(
+            pl.col("rxcui").is_not_null().cast(pl.Boolean).alias("is_selected_case")
+        )
+    else:
+        base_lf_stream = base_lf_stream.with_columns(
+            pl.col("is_selected_case").fill_null(pl.col("rxcui").is_not_null()).cast(pl.Boolean).alias("is_selected_case")
+        )
+    
+    # สร้างคอลัมน์ mapping_method
+    if has_mapping_method_stream:
+        base_lf_stream = base_lf_stream.with_columns(pl.col("mapping_method").cast(pl.Utf8).alias("mapping_method"))
+    elif has_source_stream:
+        base_lf_stream = base_lf_stream.with_columns(pl.col("source").cast(pl.Utf8).alias("mapping_method"))
+    else:
+        base_lf_stream = base_lf_stream.with_columns(pl.lit("enriched").cast(pl.Utf8).alias("mapping_method"))
+    
+    # สร้างคอลัมน์ ingredient จาก ingredients หรือ ingredients_right
+    if has_ingredients_right_stream:
+        # ใช้ ingredients_right (List) ถ้ามี
+        enriched_lookup_lf = (
+            base_lf_stream
+            .with_columns(
+                pl.when(pl.col("ingredients_right").list.len() > 0)
+                .then(pl.col("ingredients_right").list.first().cast(pl.Utf8))
+                .otherwise(None)
+                .alias("ingredient"),
+            )
+        )
+    elif is_ingredients_list_stream:
+        # ใช้ ingredients ถ้าเป็น List
+        enriched_lookup_lf = (
+            base_lf_stream
+            .with_columns(
+                pl.when(pl.col("ingredients").list.len() > 0)
+                .then(pl.col("ingredients").list.first().cast(pl.Utf8))
+                .otherwise(None)
+                .alias("ingredient"),
+            )
+        )
+    else:
+        # ใช้ ingredients โดยตรงถ้าเป็น String
+        enriched_lookup_lf = (
+            base_lf_stream
+            .with_columns(
+                pl.col("ingredients").cast(pl.Utf8).alias("ingredient"),
+            )
+        )
+    
+    enriched_lookup_lf = (
+        enriched_lookup_lf
+        .select(
+            pl.col("medicinal_product").cast(pl.Utf8),  # Key สำหรับ join
+            pl.col("rxcui"),                            # RxCUI
+            pl.col("ingredient").cast(pl.Utf8),         # ✅ ingredient มาตรฐานจาก RxNav
+            pl.col("mapping_method").cast(pl.Utf8),     # วิธีที่ใช้หา
+            pl.col("is_selected_case").cast(pl.Boolean),  # Flag สำเร็จรูป
+        )
+        .filter(pl.col("is_selected_case") == True)  # ✅ mapping_success only (no ingredient_count or rxcui_tty filtering for full_dataset)
+        .drop_nulls("medicinal_product")
+        .filter(pl.col("ingredient").is_not_null() & (pl.col("ingredient").str.strip_chars() != ""))
+    )
+    # First-stage join (clean x enriched) written to a temporary parquet to enforce streaming and avoid multi-join pipelines
+    tmp_dir = stage_output_path(ctx, "s09_finalize_merge_and_report")
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    tmp1_path = tmp_dir / f"{cohort}_tmp_step1.parquet"
+    _log_box(cohort, "Stage1 join write", action="start", path=tmp1_path)
+    (
+        clean_lf
+        .join(enriched_lookup_lf, on="medicinal_product", how="inner")
+        .sink_parquet(str(tmp1_path), compression="zstd")
+    )
+    _log_box(cohort, "Stage1 join write", status="complete")
+    
+    # Load PT-SOC dictionary (Title Case)
+    soc_dict_df = pl.read_parquet(str(dict_path))
+    logger.info(
+        f"[S09][{cohort}] Loaded PT-SOC dictionary: {soc_dict_df.height} unique PT terms"
+    )
+
+    # Second-stage join (tmp x dictionary with Title Case matching)
+    # Normalize reaction_meddrapt to Title Case (same as notebook)
+    tmp_scan = pl.scan_parquet(str(tmp1_path))
+    joined = (
+        tmp_scan
+        .with_columns(
+            pl.col("reaction_meddrapt")
+            .cast(pl.Utf8, strict=False)
+            .str.to_titlecase()
+            .alias("reaction_meddrapt")  # Overwrite original column
+        )
+        .join(
+            soc_dict_df.lazy(),
+            left_on="reaction_meddrapt",  # Use normalized column directly
+            right_on="MedDRA_concept_name",
+            how="inner"
+        )
+    )
+
+    processed = joined.with_columns(
+        # ✅ ingredient มาจาก S08 โดยตรง (enriched_lookup_lf)
+        pl.coalesce(
+            [
+                pl.col("receive_date").cast(pl.Date, strict=False),
+                pl.col("receive_date").cast(pl.Utf8, strict=False).str.strptime(pl.Date, format="%Y%m%d", strict=False),
+                pl.col("receive_date").cast(pl.Utf8, strict=False).str.strptime(pl.Date, format="%Y-%m-%d", strict=False),
+            ]
+        ).alias("receive_date"),
+    )
+
+    # Apply quality filters
+    logger.info(f"[S09][{cohort}] Applying data quality filters...")
+    processed = (
+        processed
+        # ✅ is_selected_case = mapping_success only (no ingredient_count or rxcui_tty filtering for full_dataset)
+        .filter(pl.col("ingredient").is_not_null() & (pl.col("ingredient").str.strip_chars() != ""))
+        .filter(pl.col("medicinal_product").is_not_null())
+        # NOTE: Suspect drug filter removed - now includes both suspect and concomitant drugs
+        # Filter: Exclude unwanted reporters
+        .filter(~pl.col("reporter_qualification").is_in(EXCLUDED_REPORTERS))
+    )
+    
+    logger.info(
+        f"[S09][{cohort}] Quality filters applied: "
+        f"All drug characterizations (suspect + concomitant), "
+        f"Excluded {len(EXCLUDED_REPORTERS)} reporter types"
+    )
+
+    seriousness_flags = [
+        "congenital_anomali",
+        "disabling",
+        "life_threatening",
+        "death",
+        "other",
+        "hospitalization",
+    ]
+    names_after_join = processed.collect_schema().names()
+    available_flags = [c for c in seriousness_flags if c in names_after_join]
+    if available_flags:
+        processed = processed.with_columns(
+            [
+                pl.when(pl.col(col).cast(pl.Int64, strict=False) == 1)
+                .then(1)
+                .otherwise(0)
+                .cast(pl.Int32)
+                .alias(col)
+                for col in available_flags
+            ]
+        )
+
+    serious_text = (
+        pl.col("serious").cast(pl.Utf8, strict=False).str.to_lowercase()
+        if "serious" in names_after_join
+        else None
+    )
+    serious_numeric = (
+        pl.when(pl.col("serious").cast(pl.Int64, strict=False) == 1)
+        .then(1)
+        .when(pl.col("serious").cast(pl.Int64, strict=False) == 2)
+        .then(0)
+        .when(serious_text.str.contains("did not result in any of the above", literal=True))
+        .then(0)
+        .when(serious_text.str.contains("resulted in", literal=False))
+        .then(1)
+        .otherwise(0)
+        .cast(pl.Int32)
+        if serious_text is not None
+        else pl.lit(0, dtype=pl.Int32)
+    )
+    processed = processed.with_columns(serious_numeric.alias("_serious_numeric"))
+    processed = processed.with_columns(
+        pl.max_horizontal(
+            [pl.col(c) for c in available_flags] + [pl.col("_serious_numeric")]
+        ).cast(pl.Int32).alias("serious")
+    ).drop("_serious_numeric")
+
+    if "mostrecent_receive_date" in names_after_join:
+        processed = (
+            processed.with_columns(
+                pl.coalesce(
+                    [
+                        pl.col("mostrecent_receive_date").cast(pl.Date, strict=False),
+                        pl.col("mostrecent_receive_date").cast(pl.Utf8, strict=False).str.strptime(pl.Date, format="%Y%m%d", strict=False),
+                        pl.col("mostrecent_receive_date").cast(pl.Utf8, strict=False).str.strptime(pl.Date, format="%Y-%m-%d", strict=False),
+                    ]
+                ).alias("mostrecent_receive_date")
+            )
+        )
+
+    if "lastupdate_date" in names_after_join:
+        processed = (
+            processed.with_columns(
+                pl.coalesce(
+                    [
+                        pl.col("lastupdate_date").cast(pl.Date, strict=False),
+                        pl.col("lastupdate_date").cast(pl.Utf8, strict=False).str.strptime(pl.Date, format="%Y%m%d", strict=False),
+                        pl.col("lastupdate_date").cast(pl.Utf8, strict=False).str.strptime(pl.Date, format="%Y-%m-%d", strict=False),
+                    ]
+                ).alias("lastupdate_date")
+            )
+        )
+
+    if "patient_weight" in names_after_join:
+        processed = processed.drop("patient_weight")
+    if "ingredient_count" in names_after_join:
+        processed = processed.drop("ingredient_count")
+    if "ingredients" in names_after_join:
+        processed = processed.drop("ingredients")
+    if "rxcui_tty" in names_after_join:
+        processed = processed.drop("rxcui_tty")  # Helper column used for filtering
+
+    existing_fill = [c for c in FILL_UNKNOWN_COLUMNS if c in names_after_join]
+    if existing_fill:
+        processed = processed.with_columns(
+            [
+                pl.col(col).fill_null("Unknown").alias(col)
+                for col in existing_fill
+            ]
+        )
+
+        if cohort == "adult":
+        if "nichd" in names_after_join:
+            processed = processed.drop("nichd")
+
+    processed = _apply_meddra_filters(processed)
+
+    # Select only target columns (this automatically excludes helper columns)
+    final_names = processed.collect_schema().names()
+    final_lf = processed.select([c for c in target_columns if c in final_names])
+
+    out_events = output_dataset_path(ctx, cohort, "patient_report_reporter_drug_reaction_full_data.parquet")
+    _log_box(cohort, "Write parquet", action="start", path=out_events)
+    final_lf.sink_parquet(str(out_events), compression="zstd")
+    _log_box(cohort, "Write parquet", status="complete")
+
+    out_scan = pl.scan_parquet(str(out_events))
+    _log_box(cohort, "Collect stats")
+
+    output_rows = out_scan.select(pl.len()).collect(streaming=True).item()
+    mapped_rows = (
+        out_scan.filter(pl.col("rxcui").is_not_null())
+        .select(pl.len())
+        .collect(streaming=True)
+        .item()
+        if output_rows
+        else 0
+    )
+    missing_rows = output_rows - mapped_rows
+
+    unique_after_schema = out_scan.collect_schema().names()
+    unique_after = (
+        out_scan.select(pl.col("ingredient").cast(pl.Utf8).n_unique()).collect(streaming=True).item()
+        if "ingredient" in unique_after_schema and output_rows
+        else 0
+    )
+
+    stats = {
+        "clean_rows": int(clean_rows),
+        "unique_drug_before": int(enriched_unique),
+        "output_rows": int(output_rows),
+        "mapped_rows": int(mapped_rows),
+        "missing_rows": int(missing_rows),
+        "unique_drug_after": int(unique_after),
+        "unique_drug_missing": int(max(0, enriched_unique - unique_after)),
+    }
+    return stats
+
+
+def _finalize_cohort_duckdb(cohort: str, ctx: PipelineContext) -> Dict[str, int]:
+    # Import locally so environments without duckdb can still import this module
+    import duckdb  # type: ignore
+    clean_dir = stage_output_path(ctx, "s03_join_partition_age")
+    enrich_dir = stage_output_path(ctx, "s08_enrich_drug_identifiers")
+    mapping_dir = stage_output_path(ctx, "s06_map_omop_meddra")
+
+    clean_path = clean_dir / f"{cohort}_events_full_data.parquet"
+    enriched_path = enrich_dir / f"{cohort}_drugs_enriched_final_full_data.parquet"
+    dict_path = mapping_dir / cohort / "pt_soc_dictionary_full_data.parquet"
+
+    for path in (clean_path, enriched_path, dict_path):
+        if not path.exists():
+            raise FileNotFoundError(path)
+
+    # Disk-backed temp directory to keep memory low
+    tmp_root = stage_output_path(ctx, "s09_finalize_merge_and_report")
+    tmp_root.mkdir(parents=True, exist_ok=True)
+    duck_tmp = tmp_root / "duckdb_tmp"
+    duck_tmp.mkdir(parents=True, exist_ok=True)
+
+    con = duckdb.connect()
+    try:
+        con.execute("PRAGMA threads = 8")
+        con.execute("PRAGMA temp_directory = ?", [str(duck_tmp)])
+
+        # Stats: clean rows
+        clean_rows = int(
+            con.execute("SELECT COUNT(*) FROM read_parquet(?)", [str(clean_path)]).fetchone()[0]
+        )
+
+        # Stats: unique candidate ingredients before mapping (for full_dataset: all ingredients, not just single ingredient)
+        enriched_unique = int(
+            con.execute(
+                """
+                SELECT COUNT(DISTINCT ingredient)
+                FROM (
+                    SELECT list_extract(ingredients, 1) AS ingredient
+                    FROM read_parquet(?)
+                    WHERE COALESCE(ingredient_count, 0) = 1
+                )
+                WHERE ingredient IS NOT NULL AND length(trim(ingredient)) > 0
+                """,
+                [str(enriched_path)],
+            ).fetchone()[0]
+        )
+
+        _log_box(
+            cohort,
+            "Prepare lazy pipeline",
+            clean_rows=clean_rows,
+            candidate_drugs=enriched_unique,
+        )
+        
+        logger.info(
+            f"[S09][{cohort}] Quality filters: "
+            f"Suspect drugs only, "
+            f"Excluded reporters: {', '.join(EXCLUDED_REPORTERS)}"
+        )
+
+        target_columns = ADULT_COLUMNS if cohort == "adult" else PEDIATRIC_COLUMNS
+
+        # Introspect schemas to conditionally include transformations
+        clean_cols = [r[0] for r in con.execute(
+            "SELECT * FROM read_parquet(?) LIMIT 0", [str(clean_path)]
+        ).description]
+        dict_cols = [r[0] for r in con.execute(
+            "SELECT * FROM read_parquet(?) LIMIT 0", [str(dict_path)]
+        ).description]
+
+        # Serious flags available in clean
+        seriousness_flags = [
+            "congenital_anomali",
+            "disabling",
+            "life_threatening",
+            "death",
+            "other",
+            "hospitalization",
+        ]
+        available_flags = [c for c in seriousness_flags if c in clean_cols]
+        flag_exprs = []
+        for col in available_flags:
+            flag_exprs.append(f"CASE WHEN try_cast(c.{col} AS BIGINT) = 1 THEN 1 ELSE 0 END AS {col}")
+
+        # Serious numeric from text/number
+        has_serious = "serious" in clean_cols
+        serious_numeric_expr = (
+            """
+            CASE
+              WHEN try_cast(c.serious AS BIGINT) = 1 THEN 1
+              WHEN try_cast(c.serious AS BIGINT) = 2 THEN 0
+              WHEN lower(c.serious::VARCHAR) LIKE '%did not result in any of the above%' THEN 0
+              WHEN lower(c.serious::VARCHAR) LIKE '%resulted in%' THEN 1
+              ELSE 0
+            END AS _serious_numeric
+            """
+            if has_serious
+            else "CAST(0 AS INTEGER) AS _serious_numeric"
+        )
+
+        # Compute serious as max across flags and _serious_numeric
+        greatest_args = ["_serious_numeric"] + available_flags
+        serious_expr = f"GREATEST({', '.join(greatest_args)}) AS serious" if greatest_args else "CAST(0 AS INTEGER) AS serious"
+
+        # Dates
+        receive_date_expr = (
+            "COALESCE(try_cast(c.receive_date AS DATE), try_strptime(c.receive_date::VARCHAR, '%Y%m%d'), try_strptime(c.receive_date::VARCHAR, '%Y-%m-%d')) AS receive_date"
+            if "receive_date" in clean_cols
+            else "NULL::DATE AS receive_date"
+        )
+        mostrecent_expr = (
+            "COALESCE(try_cast(c.mostrecent_receive_date AS DATE), try_strptime(c.mostrecent_receive_date::VARCHAR, '%Y%m%d'), try_strptime(c.mostrecent_receive_date::VARCHAR, '%Y-%m-%d')) AS mostrecent_receive_date"
+            if "mostrecent_receive_date" in clean_cols
+            else None
+        )
+        lastupdate_expr = (
+            "COALESCE(try_cast(c.lastupdate_date AS DATE), try_strptime(c.lastupdate_date::VARCHAR, '%Y%m%d'), try_strptime(c.lastupdate_date::VARCHAR, '%Y-%m-%d')) AS lastupdate_date"
+            if "lastupdate_date" in clean_cols
+            else "NULL::DATE AS lastupdate_date"
+        )
+
+        # Ingredient from enriched (for full_dataset: use ingredient regardless of ingredient_count)
+        ingredient_expr = "e.ingredient AS ingredient"
+
+        # Fill unknown columns
+        fill_unknown_candidates = [c for c in FILL_UNKNOWN_COLUMNS if c in clean_cols]
+        # We'll coalesce after selection where relevant; here just collect names to re-wrap later
+
+        # Base select expressions
+        # index_date - Primary timeline date (created in S03 using waterfall priority)
+        index_date_expr = (
+            "c.index_date" if "index_date" in clean_cols else "NULL::DATE AS index_date"
+        )
+
+        select_exprs = [
+            "c.safetyreportid",
+            "c.age_years" if "age_years" in clean_cols else "NULL AS age_years",
+            ("COALESCE(c.patient_sex, 'Unknown') AS patient_sex" if "patient_sex" in clean_cols else "NULL AS patient_sex"),
+            index_date_expr,
+            receive_date_expr,
+            (mostrecent_expr or "NULL AS mostrecent_receive_date"),
+            lastupdate_expr,
+            serious_expr,
+        ]
+        # Add flags normalized (they are already included in serious calc; also selected if in target columns)
+        select_exprs.extend(flag_exprs)
+        # Pediatric-only NICHD band
+        if cohort != "adult" and "nichd" in clean_cols:
+            select_exprs.append("c.nichd")
+        # Reporter
+        select_exprs.extend([
+            ("COALESCE(c.reporter_country, 'Unknown') AS reporter_country" if "reporter_country" in clean_cols else "NULL AS reporter_country"),
+            ("COALESCE(c.reporter_company, 'Unknown') AS reporter_company" if "reporter_company" in clean_cols else "NULL AS reporter_company"),
+            ("COALESCE(c.reporter_qualification, 'Unknown') AS reporter_qualification" if "reporter_qualification" in clean_cols else "NULL AS reporter_qualification"),
+        ])
+        # Drug and mapping
+        select_exprs.extend([
+            "c.medicinal_product" if "medicinal_product" in clean_cols else "NULL AS medicinal_product",
+            "c.medicinal_product_clean" if "medicinal_product_clean" in clean_cols else "NULL AS medicinal_product_clean",
+            "e.rxcui",
+            ingredient_expr,
+            "c.drug_characterization" if "drug_characterization" in clean_cols else "NULL AS drug_characterization",
+            ("COALESCE(c.drug_administration, 'Unknown') AS drug_administration" if "drug_administration" in clean_cols else "NULL AS drug_administration"),
+            ("COALESCE(c.drug_indication, 'Unknown') AS drug_indication" if "drug_indication" in clean_cols else "NULL AS drug_indication"),
+            "c.reaction_meddrapt" if "reaction_meddrapt" in clean_cols else "NULL AS reaction_meddrapt",
+            ("COALESCE(c.reaction_outcome, 'Unknown') AS reaction_outcome" if "reaction_outcome" in clean_cols else "NULL AS reaction_outcome"),
+            "d.meddra_concept_id" if "meddra_concept_id" in dict_cols else "NULL AS meddra_concept_id",
+            "d.meddra_concept_code" if "meddra_concept_code" in dict_cols else "NULL AS meddra_concept_code",
+            "d.meddra_soc_codes" if "meddra_soc_codes" in dict_cols else "NULL AS meddra_soc_codes",
+            "d.meddra_soc_names" if "meddra_soc_names" in dict_cols else "NULL AS meddra_soc_names",
+        ])
+
+        # Serious helper
+        select_helper_exprs = [serious_numeric_expr]
+
+        # Build WHERE filters mirroring MedDRA filters
+        where_clauses = [
+            "COALESCE(e.ingredient_count,0) = 1",
+            "e.ingredient IS NOT NULL",
+            "length(trim(e.ingredient)) > 0",
+            "c.medicinal_product IS NOT NULL",
+        ]
+        if "meddra_concept_id" in dict_cols:
+            where_clauses.append("d.meddra_concept_id IS NOT NULL")
+        
+        # NOTE: Suspect drug filter removed - now includes both suspect and concomitant drugs
+        # Filter: Exclude unwanted reporters
+        if "reporter_qualification" in clean_cols:
+            excluded_list = "', '".join(EXCLUDED_REPORTERS)
+            where_clauses.append(f"c.reporter_qualification NOT IN ('{excluded_list}')")
+
+        base_query = f"""
+            WITH enriched AS (
+                SELECT
+                    medicinal_product::VARCHAR AS medicinal_product,
+                    rxcui,
+                    list_extract(ingredients, 1)::VARCHAR AS ingredient,
+                    try_cast(ingredient_count AS INTEGER) AS ingredient_count
+                FROM read_parquet(?)
+            )
+            SELECT
+                {', '.join(select_exprs)},
+                {', '.join(select_helper_exprs)}
+            FROM read_parquet(?) AS c
+            JOIN enriched AS e
+              ON c.medicinal_product::VARCHAR = e.medicinal_product
+            JOIN read_parquet(?) AS d
+              ON initcap(c.reaction_meddrapt::VARCHAR) = d.MedDRA_concept_name::VARCHAR
+            WHERE { ' AND '.join(where_clauses) }
+        """
+
+        # Write directly to final parquet via COPY to keep memory bounded
+        out_events = output_dataset_path(ctx, cohort, "patient_report_reporter_drug_reaction_full_data.parquet")
+        _log_box(cohort, "Write parquet", action="start", path=out_events)
+        out_events.parent.mkdir(parents=True, exist_ok=True)
+        con.execute(
+            "COPY (" + base_query + ") TO ? (FORMAT 'parquet', COMPRESSION 'ZSTD')",
+            [str(enriched_path), str(clean_path), str(dict_path), str(out_events)],
+        )
+        _log_box(cohort, "Write parquet", status="complete")
+
+        # Collect stats from output
+        out_scan = str(out_events)
+        output_rows = int(con.execute("SELECT COUNT(*) FROM read_parquet(?)", [out_scan]).fetchone()[0])
+        mapped_rows = int(con.execute("SELECT COUNT(*) FROM read_parquet(?) WHERE rxcui IS NOT NULL", [out_scan]).fetchone()[0]) if output_rows else 0
+        unique_after = int(con.execute("SELECT COUNT(DISTINCT ingredient) FROM read_parquet(?)", [out_scan]).fetchone()[0]) if output_rows else 0
+
+        stats = {
+            "clean_rows": int(clean_rows),
+            "unique_drug_before": int(enriched_unique),
+            "output_rows": int(output_rows),
+            "mapped_rows": int(mapped_rows),
+            "missing_rows": int(output_rows - mapped_rows),
+            "unique_drug_after": int(unique_after),
+            "unique_drug_missing": int(max(0, enriched_unique - unique_after)),
+        }
+        return stats
+    finally:
+        con.close()
+
+
+def _finalize_cohort_polars_batched(cohort: str, ctx: PipelineContext) -> Dict[str, int]:
+    clean_dir = stage_output_path(ctx, "s03_join_partition_age")
+    enrich_dir = stage_output_path(ctx, "s08_enrich_drug_identifiers")
+    mapping_dir = stage_output_path(ctx, "s06_map_omop_meddra")
+
+    clean_path = clean_dir / f"{cohort}_events_full_data.parquet"
+    enriched_path = enrich_dir / f"{cohort}_drugs_enriched_final_full_data.parquet"
+    dict_path = mapping_dir / cohort / "pt_soc_dictionary_full_data.parquet"
+
+    for path in (clean_path, enriched_path, dict_path):
+        if not path.exists():
+            raise FileNotFoundError(path)
+
+    clean_rows = (
+        pl.scan_parquet(str(clean_path)).select(pl.len()).collect(streaming=True).item()
+    )
+    # ✅ ใช้ columns หลักจาก S08: medicinal_product, rxcui, ingredients (list) -> ingredient (string)
+    # แปลง ingredients (list) เป็น ingredient (string) โดยใช้ element แรก
+    # ตรวจสอบ schema ก่อนเพื่อดูว่ามีคอลัมน์อะไรบ้าง
+    enriched_schema = pl.scan_parquet(str(enriched_path)).collect_schema()
+    has_is_selected_case = "is_selected_case" in enriched_schema
+    
+    # สร้างคอลัมน์ is_selected_case ตามเงื่อนไข
+    base_lf_stats = pl.scan_parquet(str(enriched_path))
+    if not has_is_selected_case:
+        base_lf_stats = base_lf_stats.with_columns(
+            pl.col("rxcui").is_not_null().cast(pl.Boolean).alias("is_selected_case")
+        )
+    else:
+        base_lf_stats = base_lf_stats.with_columns(
+            pl.col("is_selected_case").fill_null(pl.col("rxcui").is_not_null()).cast(pl.Boolean).alias("is_selected_case")
+        )
+    
+    enriched_df_for_stats = (
+        base_lf_stats
+        .with_columns(
+            # แปลง ingredients (list) เป็น ingredient (string) - ใช้ element แรก
+            pl.when(pl.col("ingredients").list.len() > 0)
+            .then(pl.col("ingredients").list.first().cast(pl.Utf8))
+            .otherwise(None)
+            .alias("ingredient"),
+        )
+    )
+    enriched_unique = (
+        enriched_df_for_stats
+        .select(
+            pl.col("medicinal_product").cast(pl.Utf8),
+            pl.col("ingredient").cast(pl.Utf8),
+            pl.col("is_selected_case").cast(pl.Boolean),
+        )
+        .filter(pl.col("is_selected_case") == True)
+        .filter(pl.col("ingredient").is_not_null())
+        .select(pl.col("ingredient").n_unique())
+        .collect(streaming=True)
+        .item()
+    )
+
+    _log_box(
+        cohort,
+        "Prepare lazy pipeline",
+        clean_rows=clean_rows,
+        candidate_drugs=enriched_unique,
+    )
+
+    target_columns = ADULT_COLUMNS if cohort == "adult" else PEDIATRIC_COLUMNS
+
+    clean_lf = (
+        pl.scan_parquet(str(clean_path))
+        .with_columns(
+            pl.col("medicinal_product").cast(pl.Utf8, strict=False),
+            pl.col("safetyreportid").cast(pl.Utf8, strict=False),
+            pl.col("reaction_meddrapt").cast(pl.Utf8, strict=False),
+        )
+    )
+    # ✅ ใช้ Main Columns จาก S08 Final (batched function)
+    # แปลง ingredients เป็น ingredient (string) และสร้างคอลัมน์ที่จำเป็น
+    # ตรวจสอบ schema ก่อนเพื่อดูว่ามีคอลัมน์อะไรบ้างและประเภทข้อมูล
+    enriched_schema_lookup = pl.scan_parquet(str(enriched_path)).collect_schema()
+    has_is_selected_case_lookup = "is_selected_case" in enriched_schema_lookup
+    has_mapping_method_lookup = "mapping_method" in enriched_schema_lookup
+    has_source_lookup = "source" in enriched_schema_lookup
+    has_ingredients_right_lookup = "ingredients_right" in enriched_schema_lookup
+    
+    # ตรวจสอบว่า ingredients เป็น List หรือ String
+    ingredients_dtype_lookup = enriched_schema_lookup.get("ingredients")
+    is_ingredients_list_lookup = ingredients_dtype_lookup is not None and str(ingredients_dtype_lookup).startswith("List")
+    
+    # สร้างคอลัมน์ is_selected_case และ mapping_method ตามเงื่อนไข
+    base_lf = pl.scan_parquet(str(enriched_path))
+    
+    # สร้างคอลัมน์ is_selected_case
+    if not has_is_selected_case_lookup:
+        base_lf = base_lf.with_columns(
+            pl.col("rxcui").is_not_null().cast(pl.Boolean).alias("is_selected_case")
+        )
+    else:
+        base_lf = base_lf.with_columns(
+            pl.col("is_selected_case").fill_null(pl.col("rxcui").is_not_null()).cast(pl.Boolean).alias("is_selected_case")
+        )
+    
+    # สร้างคอลัมน์ mapping_method
+    if has_mapping_method_lookup:
+        base_lf = base_lf.with_columns(pl.col("mapping_method").cast(pl.Utf8).alias("mapping_method"))
+    elif has_source_lookup:
+        base_lf = base_lf.with_columns(pl.col("source").cast(pl.Utf8).alias("mapping_method"))
+    else:
+        base_lf = base_lf.with_columns(pl.lit("enriched").cast(pl.Utf8).alias("mapping_method"))
+    
+    # สร้างคอลัมน์ ingredient จาก ingredients หรือ ingredients_right
+    if has_ingredients_right_lookup:
+        # ใช้ ingredients_right (List) ถ้ามี
+        enriched_lookup_lf = (
+            base_lf
+            .with_columns(
+                pl.when(pl.col("ingredients_right").list.len() > 0)
+                .then(pl.col("ingredients_right").list.first().cast(pl.Utf8))
+                .otherwise(None)
+                .alias("ingredient"),
+            )
+        )
+    elif is_ingredients_list_lookup:
+        # ใช้ ingredients ถ้าเป็น List
+        enriched_lookup_lf = (
+            base_lf
+            .with_columns(
+                pl.when(pl.col("ingredients").list.len() > 0)
+                .then(pl.col("ingredients").list.first().cast(pl.Utf8))
+                .otherwise(None)
+                .alias("ingredient"),
+            )
+        )
+    else:
+        # ใช้ ingredients โดยตรงถ้าเป็น String
+        enriched_lookup_lf = (
+            base_lf
+            .with_columns(
+                pl.col("ingredients").cast(pl.Utf8).alias("ingredient"),
+            )
+        )
+    
+    # Select และ filter คอลัมน์ที่จำเป็น
+    enriched_lookup_lf = (
+        enriched_lookup_lf
+        .select(
+            pl.col("medicinal_product").cast(pl.Utf8),  # Key สำหรับ join
+            pl.col("rxcui"),                            # RxCUI
+            pl.col("ingredient").cast(pl.Utf8),         # ✅ ingredient มาตรฐานจาก RxNav
+            pl.col("mapping_method").cast(pl.Utf8),     # วิธีที่ใช้หา
+            pl.col("is_selected_case").cast(pl.Boolean),  # Flag สำเร็จรูป
+        )
+        .filter(pl.col("is_selected_case") == True)  # ✅ mapping_success only (no ingredient_count or rxcui_tty filtering for full_dataset)
+        .drop_nulls("medicinal_product")
+        .filter(pl.col("ingredient").is_not_null() & (pl.col("ingredient").str.strip_chars() != ""))
+    )
+    # Load PT->SOC dictionary (Title Case mapping from Stage 6)
+    soc_dict_df = pl.read_parquet(str(dict_path))
+    logger.info(
+        f"[S09][{cohort}] Loaded PT-SOC dictionary: {soc_dict_df.height} unique PT terms"
+    )
+    
+    logger.info(
+        f"[S09][{cohort}] Quality filters: "
+        f"Suspect drugs only, "
+        f"Excluded reporters: {', '.join(EXCLUDED_REPORTERS)}"
+    )
+
+    # Build batched list of medicinal_product to process
+    product_values = (
+        enriched_lookup_lf
+        .select(pl.col("medicinal_product").unique())
+        .collect(streaming=True)
+        .to_series()
+        .to_list()
+    )
+    batch_size = int(getattr(ctx.config, "metadata", {}).get("finalize_product_batch_size", 1000))
+    total_batches = (len(product_values) + max(batch_size, 1) - 1) // max(batch_size, 1)
+
+    # Optional tqdm progress bar
+    pbar = None
+    try:
+        from tqdm import tqdm as _tqdm  # type: ignore
+        pbar = _tqdm(total=total_batches, desc=f"S09 {cohort} batches", leave=False)
+    except Exception:
+        pbar = None
+
+    tmp_root = stage_output_path(ctx, "s09_finalize_merge_and_report")
+    tmp_root.mkdir(parents=True, exist_ok=True)
+    cohort_dir = tmp_root / cohort
+    cohort_dir.mkdir(parents=True, exist_ok=True)
+    # Clean previous chunk files for this cohort only
+    for p in cohort_dir.glob("batch_*.parquet"):
+        try:
+            p.unlink()
+        except Exception:
+            pass
+
+    # Process in batches
+    for i in range(0, len(product_values), batch_size):
+        chunk = product_values[i : i + batch_size]
+        if not chunk:
+            continue
+        chunk_path = cohort_dir / f"batch_{i//batch_size:05d}.parquet"
+
+        # Join clean + enriched, then normalize reaction_meddrapt to Title Case
+        base_join = (
+            clean_lf
+            .filter(pl.col("medicinal_product").is_in(chunk))
+            .join(enriched_lookup_lf, on="medicinal_product", how="inner")
+            .with_columns(
+                # Normalize reaction_meddrapt to Title Case (overwrite)
+                pl.col("reaction_meddrapt")
+                .cast(pl.Utf8, strict=False)
+                .str.to_titlecase()
+                .alias("reaction_meddrapt")  # Overwrite original
+            )
+        )
+        
+        # Join with PT-SOC dictionary using Title Case matching
+        joined = (
+            base_join
+            .join(
+                soc_dict_df.lazy(),
+                left_on="reaction_meddrapt",  # Use normalized column directly
+                right_on="MedDRA_concept_name",
+                how="inner"
+            )
+        )
+
+        processed = joined.with_columns(
+            # ✅ ingredient มาจาก S08 โดยตรง (enriched_lookup_lf)
+            pl.coalesce([
+                pl.col("receive_date").cast(pl.Date, strict=False),
+                pl.col("receive_date").cast(pl.Utf8, strict=False).str.strptime(pl.Date, format="%Y%m%d", strict=False),
+                pl.col("receive_date").cast(pl.Utf8, strict=False).str.strptime(pl.Date, format="%Y-%m-%d", strict=False),
+            ]).alias("receive_date"),
+        )
+
+        # Apply quality filters (Note: drug_characterization and reporter filters moved to S03)
+        processed = (
+            processed
+            # ✅ is_selected_case = mapping_success only (no ingredient_count or rxcui_tty filtering for full_dataset)
+            .filter(pl.col("medicinal_product").is_not_null())
+            # NOTE: Suspect drug filter removed - now includes both suspect and concomitant drugs
+            # Filter: Exclude unwanted reporters
+            .filter(~pl.col("reporter_qualification").is_in(EXCLUDED_REPORTERS))
+        )
+
+        seriousness_flags = [
+            "congenital_anomali",
+            "disabling",
+            "life_threatening",
+            "death",
+            "other",
+            "hospitalization",
+        ]
+        names_after_join = processed.collect_schema().names()
+        available_flags = [c for c in seriousness_flags if c in names_after_join]
+        if available_flags:
+            processed = processed.with_columns([
+                pl.when(pl.col(col).cast(pl.Int64, strict=False) == 1).then(1).otherwise(0).cast(pl.Int32).alias(col)
+                for col in available_flags
+            ])
+
+        serious_text = (
+            pl.col("serious").cast(pl.Utf8, strict=False).str.to_lowercase()
+            if "serious" in names_after_join
+            else None
+        )
+        serious_numeric = (
+            pl.when(pl.col("serious").cast(pl.Int64, strict=False) == 1).then(1)
+            .when(pl.col("serious").cast(pl.Int64, strict=False) == 2).then(0)
+            .when(serious_text.str.contains("did not result in any of the above", literal=True)).then(0)
+            .when(serious_text.str.contains("resulted in", literal=False)).then(1)
+            .otherwise(0)
+            .cast(pl.Int32)
+            if serious_text is not None
+            else pl.lit(0, dtype=pl.Int32)
+        )
+        processed = processed.with_columns(serious_numeric.alias("_serious_numeric"))
+        processed = processed.with_columns(
+            pl.max_horizontal([pl.col(c) for c in available_flags] + [pl.col("_serious_numeric")]).cast(pl.Int32).alias("serious")
+        ).drop("_serious_numeric")
+
+        if "mostrecent_receive_date" in names_after_join:
+            processed = (
+                processed.with_columns(
+                    pl.coalesce([
+                        pl.col("mostrecent_receive_date").cast(pl.Date, strict=False),
+                        pl.col("mostrecent_receive_date").cast(pl.Utf8, strict=False).str.strptime(pl.Date, format="%Y%m%d", strict=False),
+                        pl.col("mostrecent_receive_date").cast(pl.Utf8, strict=False).str.strptime(pl.Date, format="%Y-%m-%d", strict=False),
+                    ]).alias("mostrecent_receive_date")
+                ).drop_nulls(["mostrecent_receive_date"])
+            )
+
+        if "lastupdate_date" in names_after_join:
+            processed = (
+                processed.with_columns(
+                    pl.coalesce([
+                        pl.col("lastupdate_date").cast(pl.Date, strict=False),
+                        pl.col("lastupdate_date").cast(pl.Utf8, strict=False).str.strptime(pl.Date, format="%Y%m%d", strict=False),
+                        pl.col("lastupdate_date").cast(pl.Utf8, strict=False).str.strptime(pl.Date, format="%Y-%m-%d", strict=False),
+                    ]).alias("lastupdate_date")
+                )
+            )
+
+        if "patient_weight" in names_after_join:
+            processed = processed.drop("patient_weight")
+        if "ingredient_count" in names_after_join:
+            processed = processed.drop("ingredient_count")
+        if "ingredients" in names_after_join:
+            processed = processed.drop("ingredients")
+        if "rxcui_tty" in names_after_join:
+            processed = processed.drop("rxcui_tty")  # Helper column used for filtering
+
+        existing_fill = [c for c in FILL_UNKNOWN_COLUMNS if c in names_after_join]
+        if existing_fill:
+            processed = processed.with_columns([
+                pl.col(col).fill_null("Unknown").alias(col)
+                for col in existing_fill
+            ])
+
+        if cohort == "adult" and "nichd" in names_after_join:
+            processed = processed.drop("nichd")
+
+        processed = _apply_meddra_filters(processed)
+
+        # Select only target columns (this automatically excludes helper columns)
+        final_names = processed.collect_schema().names()
+        final_chunk = processed.select([c for c in target_columns if c in final_names])
+
+        # Write chunk parquet
+        final_chunk.sink_parquet(str(chunk_path), compression="zstd")
+        if pbar is not None:
+            try:
+                pbar.update(1)
+            except Exception:
+                pass
+
+    # Close progress bar if used
+    if pbar is not None:
+        try:
+            pbar.close()
+        except Exception:
+            pass
+
+    # Merge chunk outputs into final file
+    out_events = output_dataset_path(ctx, cohort, "patient_report_reporter_drug_reaction_full_data.parquet")
+    chunk_files = sorted(cohort_dir.glob("batch_*.parquet"))
+    if not chunk_files:
+        raise RuntimeError("No chunk outputs produced for cohort " + cohort)
+    _log_box(cohort, "Write parquet", action="start", path=out_events)
+    combined_lf = pl.scan_parquet([str(p) for p in chunk_files])
+    combined_lf.sink_parquet(str(out_events), compression="zstd")
+    _log_box(cohort, "Write parquet", status="complete")
+
+    # Stats
+    out_scan = pl.scan_parquet(str(out_events))
+    _log_box(cohort, "Collect stats")
+    output_rows = out_scan.select(pl.len()).collect(streaming=True).item()
+    mapped_rows = (
+        out_scan.filter(pl.col("rxcui").is_not_null()).select(pl.len()).collect(streaming=True).item()
+        if output_rows else 0
+    )
+    missing_rows = output_rows - mapped_rows
+    unique_after_schema = out_scan.collect_schema().names()
+    unique_after = (
+        out_scan.select(pl.col("ingredient").cast(pl.Utf8).n_unique()).collect(streaming=True).item()
+        if "ingredient" in unique_after_schema and output_rows else 0
+    )
+
+    stats = {
+        "clean_rows": int(clean_rows),
+        "unique_drug_before": int(enriched_unique),
+        "output_rows": int(output_rows),
+        "mapped_rows": int(mapped_rows),
+        "missing_rows": int(missing_rows),
+        "unique_drug_after": int(unique_after),
+        "unique_drug_missing": int(max(0, enriched_unique - unique_after)),
+    }
+    return stats
+
+
+def run(ctx: PipelineContext) -> None:
+    manifest_payload: Dict[str, Dict[str, object]] = {}
+    finals: Dict[str, int] = {}
+
+    for cohort in ("pediatric", "adult"):
+        _log_box(cohort, "Finalize cohort", status="start")
+        # Use Polars batched backend to avoid OOM
+        stats = _finalize_cohort_polars_batched(cohort, ctx)
+        out_path = output_dataset_path(ctx, cohort, "patient_report_reporter_drug_reaction.parquet")
+        out_scan = pl.scan_parquet(str(out_path)) if out_path.exists() else None
+
+        after = stats.get("output_rows", 0)
+        mapped = (
+            out_scan.filter(pl.col("meddra_concept_id").is_not_null())
+            .select(pl.len())
+            .collect(streaming=True)
+            .item()
+            if after and out_scan is not None
+            else 0
+        )
+        rxnorm_mapped = (
+            out_scan.filter(pl.col("rxcui").is_not_null())
+            .select(pl.len())
+            .collect(streaming=True)
+            .item()
+            if after and out_scan is not None
+            else 0
+        )
+
+        dq_summary_markdown(
+            ctx,
+            "s09_finalize_merge_and_report",
+            cohort,
+            stats.get("clean_rows", 0),
+            after,
+            {
+                "meddra_coverage_pct": f"{(mapped / after * 100) if after else 0:.2f}",
+                "rxnorm_coverage_pct": f"{(rxnorm_mapped / after * 100) if after else 0:.2f}",
+            },
+        )
+
+        manifest_payload[cohort] = {
+            **stats,
+            "meddra_mapped": mapped,
+            "rxnorm_mapped": rxnorm_mapped,
+            "output_path": str(out_path),
+        }
+        finals[cohort] = after
+
+        _log_box(
+            cohort,
+            "Coverage metrics",
+            rows=after,
+            meddra_coverage=f"{(mapped / after * 100) if after else 0:.2f}%",
+            rxnorm_coverage=f"{(rxnorm_mapped / after * 100) if after else 0:.2f}%",
+            drug_unique_before=stats.get("unique_drug_before", 0),
+            drug_unique_mapped=stats.get("unique_drug_after", 0),
+            drug_unique_missing=stats.get("unique_drug_missing", 0),
+        )
+
+    _render_dataset_readme(ctx, finals.get("adult", 0), finals.get("pediatric", 0))
+
+    write_manifest(
+        ctx,
+        "s09_finalize_merge_and_report",
+        {"stage": "s09_finalize_merge_and_report", "cohorts": manifest_payload},
+    )
+    _log_box("summary", "Stage complete", output_root=ctx.config.paths.output_root)
+
+
+def _render_dataset_readme(ctx: PipelineContext, adult_rows: int, pediatric_rows: int) -> None:
+    readme_path = ctx.config.paths.output_root / "README.md"
+    with readme_path.open("w", encoding="utf-8") as fh:
+        fh.write("# CAN Drug Pipeline Dataset\n\n")
+        fh.write(
+            "This dataset contains adult and pediatric adverse drug reaction (ADR) cohorts derived from FAERS/OpenFDA.\n\n"
+        )
+        fh.write("## Structure\n")
+        fh.write("- `Adult/*.parquet`\n")
+        fh.write("- `Pediatric/*.parquet`\n")
+        fh.write("- `_summary/*.md` per cohort\n\n")
+        fh.write("## Key Columns\n")
+        fh.write("- `safetyreportid`: OpenFDA safety report identifier\n")
+        fh.write("- `age_years`: Patient age in years\n")
+        fh.write("- `medicinal_product_clean`: Normalised drug name\n")
+        fh.write("- `reaction_meddrapt`: Reported reaction term\n")
+        fh.write("- `meddra_concept_*`: Linked OMOP/MedDRA identifiers\n")
+        fh.write("- `rxcui`: RxNorm concept identifier\n")
+        fh.write("- `ingredient`: Primary ingredient after RxNorm expansion\n\n")
+        fh.write("## Summary\n")
+        fh.write(f"- Adult rows: {adult_rows:,}\n")
+        fh.write(f"- Pediatric rows: {pediatric_rows:,}\n")
+        fh.write(f"- Generated by run `{ctx.run_id}` on {ctx.run_ts.isoformat()}\n")
+
+
+__all__ = ["run"]
