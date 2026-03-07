@@ -39,10 +39,3 @@ full_dataset/
 | 5 | S08 Enrich | `tmux` + `scripts/step5_s08_enrich.sh` |
 | 6 | S09–S10 | `bash scripts/run_s09_s10.sh` |
 
-## Configuration
-
-- **Standalone:** full_dataset ใช้ path ภายในตัวเอง (`data/vocab`, `data/staging`) ไม่อ้าง parent
-- **เตรียม vocab:** ต้อง copy OMOP vocabulary มาที่ `data/vocab/` — ดู [SETUP_STANDALONE.md](SETUP_STANDALONE.md)
-- **Output:** เก็บใน `full_dataset/data/output/`
-
-ดูรายละเอียดเพิ่มใน [PIPELINE_GUIDE.md](PIPELINE_GUIDE.md)
