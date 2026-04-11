@@ -4,6 +4,16 @@ Pipeline สำหรับประมวลผล **FAERS (FDA Adverse Event R
 
 ## Quick Start
 
+สร้าง config และ secrets ในเครื่อง (ไม่ commit — ใช้ไฟล์ตัวอย่างใน repo):
+
+```bash
+cp configs/config.example.yaml configs/config.local.yaml
+cp .env.example .env
+# แก้ .env ใส่ OPENFDA_API_KEY, NCBI_API_KEY, … ตามต้องการ
+```
+
+Python โหลด `.env` อัตโนมัติเมื่อ import `src.settings` (รวม `python -m src.cli …`).
+
 ```bash
 cd full_dataset
 source ~/miniforge3/bin/activate

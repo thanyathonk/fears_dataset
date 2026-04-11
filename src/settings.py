@@ -2,6 +2,14 @@ from __future__ import annotations
 
 """Settings and configuration loading for the can-drug pipeline."""
 
+# Load repository-root .env into os.environ before any code reads API keys.
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except ImportError:
+    pass
+
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -89,7 +97,10 @@ class PathsConfig(BaseModel):
     @field_validator("root", mode="before")
     @classmethod
     def _coerce_root(cls, value: Any) -> Path:
-        return Path(value).resolve() if value else Path(".").resolve()
+        # Use absolute() instead of resolve() to avoid following symlinks.
+        # resolve() would turn a symlinked workspace into the read-only git-share path.
+        p = Path(value) if value else Path(".")
+        return p.expanduser().absolute()
 
     @model_validator(mode="after")
     def _resolve_paths(self) -> "PathsConfig":

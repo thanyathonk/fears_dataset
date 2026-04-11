@@ -25,7 +25,7 @@ from src.adapters.rxnorm import RxNormClient, IngredientInfo
 from src.utils.io import PipelineContext, stage_output_path, write_manifest
 
 # NCBI API Configuration
-NCBI_API_KEY = "2f59af6ca759dbfd1ab61a775437be88a609"  # Your NCBI API Key
+NCBI_API_KEY = os.environ.get("NCBI_API_KEY", "").strip()
 
 # Rate limiting: Reduced to avoid PubChem 503 Server Busy errors
 RATE_LIMIT_SEMAPHORE = asyncio.Semaphore(5)

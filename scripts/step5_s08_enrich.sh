@@ -19,8 +19,13 @@ cd "${SCRIPT_DIR}/.."
 
 COHORT="${1:-}"   # optional: "pediatric" or "adult"; empty = both
 
+# Reset positional params before sourcing conda activate,
+# otherwise $1 (cohort arg) leaks into the activate script as env name.
+_saved_args=("$@")
+set --
 source ~/miniforge3/bin/activate
-CONDA_ENV=${CONDA_ENV:-can-drug-pipeline}
+set -- "${_saved_args[@]}"
+CONDA_ENV=${CONDA_ENV:-fulldata}
 conda activate "${CONDA_ENV}"
 
 RUN_ID=${RUN_ID:-$(date +"%Y%m%dT%H%M%S")}

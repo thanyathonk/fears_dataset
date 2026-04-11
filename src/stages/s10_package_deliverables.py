@@ -64,17 +64,17 @@ def _package_cohort_pl(ctx: PipelineContext, cohort: str) -> Dict[str, int]:
     counts["patient_report"] = int(pr.select(pl.len()).collect(streaming=True).item())
     _log_box(cohort, "Patient report", rows=counts["patient_report"], path=s09_output)
 
-    # drug.parquet: per ingredient representative drug fields
+    # drug.parquet: one row per RxCUI (canonical drug entity for counts / ROR)
     drug_lf = (
         pr
-        .filter(pl.col("ingredient").is_not_null())
-        .group_by("ingredient")
+        .filter(pl.col("rxcui").is_not_null())
+        .group_by("rxcui")
         .agg(
+            pl.col("ingredient").first().alias("ingredient"),
             pl.col("medicinal_product").first().alias("medicinal_product"),
-            pl.col("rxcui").first().alias("rxcui"),
-            pl.col("mapping_method").first().alias("mapping_method"),  # ✅ วิธีที่ใช้หา rxcui
+            pl.col("mapping_method").first().alias("mapping_method"),
         )
-        .select("ingredient", "medicinal_product", "rxcui", "mapping_method")
+        .select("rxcui", "ingredient", "medicinal_product", "mapping_method")
     )
     drug_path = cohort_dir / "drug_full_data.parquet"
     counts["drug"] = int(drug_lf.select(pl.len()).collect(streaming=True).item())

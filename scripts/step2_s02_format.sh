@@ -16,7 +16,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "${SCRIPT_DIR}/.."
 
 source ~/miniforge3/bin/activate
-CONDA_ENV=${CONDA_ENV:-can-drug-pipeline}
+CONDA_ENV=${CONDA_ENV:-fulldata}
 conda activate "${CONDA_ENV}"
 
 RUN_ID=${RUN_ID:-$(date +"%Y%m%dT%H%M%S")}

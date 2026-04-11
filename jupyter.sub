@@ -1,0 +1,30 @@
+#!/bin/bash -l
+
+#SBATCH --job-name=jpt
+#SBATCH --output=out.%j
+#SBATCH --nodes=1
+#SBATCH --partition=scads
+#SBATCH --account=scads
+#SBATCH -c 8
+#SBATCH --mem=400G
+#SBATCH --time=7-00:00:00
+
+module load Anaconda3
+
+port=$(shuf -i 6000-9999 -n 1)
+USER=$(whoami)
+node=$(hostname -s)
+
+cat<<EOF
+Jupyter is running on: $node
+Tunnel command:
+ssh -L 8888:$node:$port $USER@ist-compute.vistec.ac.th -i ~/.ssh/vistec-id_rsa
+EOF
+
+unset XDG_RUNTIME_DIR
+if [ "$SLURM_JOBTMP" != "" ]; then
+    export XDG_RUNTIME_DIR=$SLURM_JOBTMP
+fi
+
+source activate jupyter
+jupyter lab --no-browser --port $port --notebook-dir=$(pwd) --ip=$node

@@ -19,11 +19,6 @@ from rich.progress import (
 )
 
 from src.settings import load_settings
-try:
-    from dotenv import load_dotenv  # type: ignore
-    load_dotenv()
-except Exception:
-    pass
 from src.utils.io import PipelineContext, init_run_context
 from src.stages import get_stage_callable, ORDERED_STAGES
 

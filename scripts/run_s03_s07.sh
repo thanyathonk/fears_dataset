@@ -1,88 +1,97 @@
 #!/bin/bash
 
 #SBATCH --job-name=s03-s07
-#SBATCH --partition=qgpu_gtx1070ti
+#SBATCH --partition=scads
 #SBATCH --nodes=1
-#SBATCH --cpus-per-task=12
-#SBATCH --gres=gpu:1
-#SBATCH --mem=60G
+#SBATCH --cpus-per-task=64
+#SBATCH --gres=gpu:0
+#SBATCH --mem=460G
 #SBATCH --time=4-00:00:00
+#SBATCH --output=logs/slurm-s03s07-%j.out
+#SBATCH --error=logs/slurm-s03s07-%j.err
+
+# Usage: sbatch scripts/run_s03_s07.sh
+# Must be submitted from project root:
+#   cd /ist/ist-share/scads/thanyathonk/fears_dataset
+#   sbatch scripts/run_s03_s07.sh
+#
+# Partition: scads → ist-dgx04: 80 CPUs, 515 GB RAM [matches S02 environment]
+# Resources: 64 CPUs + 460 GB
 
 set -euo pipefail
 
+cd "${SLURM_SUBMIT_DIR}"
 
-# Activate conda environment
 source ~/miniforge3/bin/activate
-CONDA_ENV=${CONDA_ENV:-can-drug-pipeline}
+CONDA_ENV=${CONDA_ENV:-fulldata}
 conda activate "${CONDA_ENV}"
 
-RUN_ID_ROOT=${RUN_ID_ROOT:-$(date +"%Y%m%dT%H%M%S")}
-LOG_ROOT="logs/${RUN_ID_ROOT}"
-mkdir -p "${LOG_ROOT}"
-
-info() {
-    echo "=========================================="
-    echo "$1"
-    echo "time: $(date)"
-    echo "=========================================="
-}
-
-run_cmd() {
-    local description=$1
-    shift
-
-    info "start: ${description}"
-    "$@" 2>&1 | tee -a "${LOG_ROOT}/${description// /_}.log"
-    local exit_code=$?
-    if [[ ${exit_code} -ne 0 ]]; then
-        echo "❌ ${description} failed (exit ${exit_code})"
-        exit ${exit_code}
-    fi
-    echo "✅ ${description} completed"
-    echo ""
-}
+export PYTHONUNBUFFERED=1
 
 echo "=========================================="
 echo "Step 3 – S03, S05, S06, S06b, S07 (full_dataset)"
-echo "RUN_ID_ROOT: ${RUN_ID_ROOT}"
-echo "Log directory: ${LOG_ROOT}"
+echo "Submit dir: ${SLURM_SUBMIT_DIR}"
+echo "Start: $(date 2>/dev/null || echo 'N/A')"
 echo "=========================================="
 echo ""
 
 # S03: Join tables with early quality filtering
-run_cmd "S03 – Join tables + Early quality filters" \
-    python -m src.cli run-stage s03_join_partition_age --run-id "${RUN_ID_ROOT}_s03"
+echo "=========================================="
+echo "start: S03 – Join tables + Early quality filters"
+echo "time: $(date 2>/dev/null || echo 'N/A')"
+echo "=========================================="
+python -u -m src.cli run-stage s03_join_partition_age
+echo "✅ S03 completed"
+echo ""
 
 # S05: Split ADR reports
-run_cmd "S05 – Split ADR reports" \
-    python -m src.cli run-stage s05_split_adr --run-id "${RUN_ID_ROOT}_s05"
+echo "=========================================="
+echo "start: S05 – Split ADR reports"
+echo "time: $(date 2>/dev/null || echo 'N/A')"
+echo "=========================================="
+python -u -m src.cli run-stage s05_split_adr
+echo "✅ S05 completed"
+echo ""
 
 # S06: MedDRA mapping (PT→SOC via CONCEPT_ANCESTOR)
-run_cmd "S06 – MedDRA mapping" \
-    python -m src.cli run-stage s06_map_omop_meddra --run-id "${RUN_ID_ROOT}_s06"
+echo "=========================================="
+echo "start: S06 – MedDRA mapping"
+echo "time: $(date 2>/dev/null || echo 'N/A')"
+echo "=========================================="
+python -u -m src.cli run-stage s06_map_omop_meddra
+echo "✅ S06 completed"
+echo ""
 
 # S06b: MedDRA full hierarchy (PT→HLT→HLGT→SOC via CONCEPT_RELATIONSHIP)
-run_cmd "S06b – MedDRA full hierarchy" \
-    python -m src.cli run-stage s06b_map_omop_meddra_full_hierarchy --run-id "${RUN_ID_ROOT}_s06b"
+echo "=========================================="
+echo "start: S06b – MedDRA full hierarchy"
+echo "time: $(date 2>/dev/null || echo 'N/A')"
+echo "=========================================="
+python -u -m src.cli run-stage s06b_map_omop_meddra_full_hierarchy
+echo "✅ S06b completed"
+echo ""
 
 # S07: Split drug names for LLM cleaning
-run_cmd "S07 – Split drug names" \
-    python -m src.cli run-stage s07_split_drug --run-id "${RUN_ID_ROOT}_s07"
+echo "=========================================="
+echo "start: S07 – Split drug names"
+echo "time: $(date 2>/dev/null || echo 'N/A')"
+echo "=========================================="
+python -u -m src.cli run-stage s07_split_drug
+echo "✅ S07 completed"
+echo ""
 
 echo "=========================================="
 echo "✅ All stages S03, S05, S06, S06b, S07 completed successfully"
-echo "End time: $(date)"
+echo "End: $(date 2>/dev/null || echo 'N/A')"
 echo "=========================================="
 echo ""
 echo "📋 Next steps (run separately in tmux sessions):"
 echo ""
 echo "1️⃣  Step 4 – S07b (LLM drug cleaning – GPU required):"
 echo "   sbatch scripts/step4_s07b_llm.sh"
-echo "   # or local (slow): bash scripts/step4_s07b_llm.sh"
 echo ""
 echo "2️⃣  Step 5 – S08 (Drug enrichment via API – tmux recommended):"
-echo "   tmux new-session -s s08 \"bash scripts/step5_s08_enrich.sh\""
-echo "   # or directly: bash scripts/step5_s08_enrich.sh"
+echo "   tmux new-session -s s08 'bash scripts/step5_s08_enrich.sh'"
 echo ""
 echo "3️⃣  Step 6 – S09+S10 (after S07b and S08 complete):"
 echo "   bash scripts/run_s09_s10.sh"

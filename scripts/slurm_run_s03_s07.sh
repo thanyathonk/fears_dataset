@@ -1,19 +1,21 @@
 #!/bin/bash
 
 #SBATCH --job-name=s03-s07
-#SBATCH --partition=qgpu_gtx1070ti
+#SBATCH --partition=gpu-cluster
 #SBATCH --nodes=1
-#SBATCH --cpus-per-task=12
-#SBATCH --gres=gpu:0
-#SBATCH --mem=60G
-#SBATCH --time=4-00:00:00
-#SBATCH --output=slurm-%j.out
-#SBATCH --error=slurm-%j.err
+#SBATCH --cpus-per-task=16
+#SBATCH --gres=gpu:1
+#SBATCH --mem=250G
+#SBATCH --time=1-00:00:00
+#SBATCH --output=logs/slurm-%j.out
+#SBATCH --error=logs/slurm-%j.err
 
 # Usage: sbatch scripts/slurm_run_s03_s07.sh
-# Must be submitted from inside full_dataset/:
-#   cd /path/to/full_dataset
+# Must be submitted from project root:
+#   cd /path/to/fears_dataset
 #   sbatch scripts/slurm_run_s03_s07.sh
+#
+# Partition: cpu (ist-compute-1-001~004: 80 CPUs, ~724GB RAM/node). S03–S07 are CPU-only.
 
 set -euo pipefail
 
@@ -22,7 +24,7 @@ cd "${SLURM_SUBMIT_DIR}"
 
 # Activate conda environment
 source ~/miniforge3/bin/activate
-CONDA_ENV=${CONDA_ENV:-can-drug-pipeline}
+CONDA_ENV=${CONDA_ENV:-fulldata}
 conda activate "${CONDA_ENV}"
 
 export PYTHONUNBUFFERED=1
@@ -58,7 +60,7 @@ echo "Step 3 – S03, S05, S06, S06b, S07 (full_dataset)"
 echo "RUN_ID_ROOT: ${RUN_ID_ROOT}"
 echo "Log directory: ${LOG_ROOT}"
 echo "Submit dir: ${SLURM_SUBMIT_DIR}"
-echo "Memory allocated: 60G"
+echo "Memory allocated: 250G"
 echo "=========================================="
 echo ""
 

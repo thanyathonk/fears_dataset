@@ -1,6 +1,15 @@
 from __future__ import annotations
 
-"""Stage S03 – Join base tables and split adult/pediatric cohorts using Polars with early quality filters."""
+"""Stage S03 – Join base tables and split adult/pediatric cohorts using Polars with early quality filters.
+
+Drug rows are read from ``drugcharacteristics_extended.parquet`` (S02) so each event carries
+dosage / active substance / regulatory fields (the FAERS ``entry`` index is not written to
+the cohort parquet — use ``medicinal_product`` and other drug columns). Requires S02 extended output;
+re-run S02 then S03 if that file is missing.
+
+Only **Suspect** drug lines are kept (``drug_characterization`` starts with ``Suspect``);
+concomitant-only report lines are dropped at this stage.
+"""
 
 from datetime import date
 from pathlib import Path
@@ -13,7 +22,7 @@ from tqdm import tqdm
 from src.utils.io import PipelineContext, stage_output_path, write_manifest
 
 # Early quality filters (moved from S04 for better performance)
-# NOTE: SUSPECT_DRUG_VALUE removed - now includes both suspect and concomitant drugs
+# Keep only reporter-suspected drug lines (excludes concomitant / non-suspect).
 EXCLUDED_REPORTERS = [
     "Unknown",
     "Lawyer",
@@ -26,6 +35,11 @@ EXCLUDED_REPORTERS = [
 # กำหนดช่วงเวลาที่ต้องการกรองข้อมูล (inclusive)
 START_YEAR = 2014
 END_YEAR = 2025
+
+
+def _suspect_drug_only() -> pl.Expr:
+    """FAERS drug lines where the reporter marked the product as Suspect (not Concomitant)."""
+    return pl.col("drug_characterization").cast(pl.Utf8, strict=False).str.starts_with("Suspect")
 
 
 def _scan_required(ctx: PipelineContext, name: str, *, columns: Iterable[str]) -> pl.LazyFrame:
@@ -101,17 +115,14 @@ def _parse_date_column(col_name: str) -> pl.Expr:
 
 def _prepare_report(ctx: PipelineContext) -> pl.LazyFrame:
     """
-    Prepare report table with date parsing and index_date creation.
-    
-    Process:
-    1. Parse all 3 date columns to proper Date type
-    2. Create index_date using Waterfall Priority:
-       - Priority 1: mostrecent_receive_date (latest update date)
-       - Priority 2: lastupdate_date (system update date)
-       - Priority 3: receive_date (initial receive date)
-    3. Filter by date range [START_YEAR, END_YEAR]
-    4. Sort by index_date ascending (oldest to newest)
-    5. Keep original date columns for audit trail
+    Prepare report table with date parsing.
+
+    Outputs only the three FAERS date fields (no combined ``index_date`` column):
+    ``receive_date``, ``mostrecent_receive_date``, ``lastupdate_date``.
+
+    Cohort inclusion still uses the same waterfall as the old index_date, but only
+    as a transient key for filter/sort (not written to parquet):
+    mostrecent_receive_date → lastupdate_date → receive_date.
     """
     report_columns = [
         "safetyreportid",
@@ -131,39 +142,25 @@ def _prepare_report(ctx: PipelineContext) -> pl.LazyFrame:
     ])
     
     # ─────────────────────────────────────────────────────────────────────────
-    # Step 2: Create index_date using Waterfall Priority (vectorized coalesce)
-    # Priority: mostrecent_receive_date → lastupdate_date → receive_date
-    # ─────────────────────────────────────────────────────────────────────────
-    report = report.with_columns(
-        pl.coalesce([
-            pl.col("mostrecent_receive_date"),  # Priority 1: Latest update
-            pl.col("lastupdate_date"),          # Priority 2: System update
-            pl.col("receive_date"),             # Priority 3: Initial receive
-        ]).alias("index_date")
-    )
-    
-    # ─────────────────────────────────────────────────────────────────────────
-    # Step 3: Filter by date range [START_YEAR, END_YEAR]
-    # - Remove rows with null index_date
-    # - Keep only rows within the specified year range
+    # Step 2: Transient timeline key (same priority as former index_date) for
+    # filter + sort only — dropped before join; three source columns stay separate.
     # ─────────────────────────────────────────────────────────────────────────
     start_date = date(START_YEAR, 1, 1)
     end_date = date(END_YEAR, 12, 31)
-    
+
+    _timeline = pl.coalesce([
+        pl.col("mostrecent_receive_date"),
+        pl.col("lastupdate_date"),
+        pl.col("receive_date"),
+    ])
+    report = report.with_columns(_timeline.alias("_timeline_key"))
     report = report.filter(
-        pl.col("index_date").is_not_null() &
-        (pl.col("index_date") >= start_date) &
-        (pl.col("index_date") <= end_date)
+        pl.col("_timeline_key").is_not_null()
+        & (pl.col("_timeline_key") >= pl.lit(start_date))
+        & (pl.col("_timeline_key") <= pl.lit(end_date))
     )
-    
-    # ─────────────────────────────────────────────────────────────────────────
-    # Step 4: Sort by index_date ascending (oldest to newest)
-    # ─────────────────────────────────────────────────────────────────────────
-    report = report.sort("index_date")
-    
-    # Note: Original date columns (receive_date, mostrecent_receive_date, 
-    #       lastupdate_date) are preserved for audit/verification purposes
-    
+    report = report.sort("_timeline_key").drop("_timeline_key")
+
     return report
 
 
@@ -200,16 +197,34 @@ def _prepare_reporter(ctx: PipelineContext) -> pl.LazyFrame:
 
 
 def _prepare_drug(ctx: PipelineContext) -> pl.LazyFrame:
+    """Load per-(report, drug line) rows from S02 extended drug table.
+
+    Each row in the source file is still one FAERS drug line; we omit ``entry`` from the
+    selected columns so it does not appear in cohort outputs. Active substance, dosage,
+    and regulatory fields are kept for downstream stages.
+    """
     drug_columns = [
         "safetyreportid",
         "medicinal_product",
         "drug_characterization",
         "drug_administration",
         "drug_indication",
+        "active_substance_name",
+        "drug_dosage_form",
+        "drug_authorization_number",
+        "drug_batch_number",
+        "drug_structured_dosage_num",
+        "drug_structured_dosage_unit",
+        "drug_interval_dosage_unit_num",
+        "drug_interval_dosage_definition",
+        "drug_treatment_duration",
+        "drug_treatment_duration_unit",
+        "drug_separate_dosage_num",
+        "action_drug",
     ]
-    return _scan_required(ctx, "drugcharacteristics", columns=drug_columns).with_columns(
-        pl.col("drug_indication").cast(pl.Utf8, strict=False)
-    )
+    lf = _scan_required(ctx, "drugcharacteristics_extended", columns=drug_columns)
+    text_cols = [c for c in drug_columns if c != "safetyreportid"]
+    return lf.with_columns([pl.col(c).cast(pl.Utf8, strict=False) for c in text_cols])
 
 
 def _prepare_reaction(ctx: PipelineContext) -> pl.LazyFrame:
@@ -269,11 +284,13 @@ def _build_pediatric(
         .filter(
             # Basic validation
             pl.col("safetyreportid").is_not_null(),
+            # Exclude FAERS composite keys (e.g. 4816137-9); downstream expects digits-only IDs
+            pl.col("safetyreportid").str.contains(r"^\d+$"),
             pl.col("reaction_meddrapt").is_not_null(),
             pl.col("medicinal_product").is_not_null(),
             pl.col("medicinal_product").str.len_chars() > 0,
             # Quality filters
-            # NOTE: Removed suspect drug filter - now includes both suspect and concomitant drugs
+            _suspect_drug_only(),
             ~pl.col("reporter_qualification").is_in(EXCLUDED_REPORTERS),
         )
         .drop("patient_custom_master_age")
@@ -316,11 +333,13 @@ def _build_adult(
         .filter(
             # Basic validation
             pl.col("safetyreportid").is_not_null(),
+            # Exclude FAERS composite keys (e.g. 4816137-9); downstream expects digits-only IDs
+            pl.col("safetyreportid").str.contains(r"^\d+$"),
             pl.col("reaction_meddrapt").is_not_null(),
             pl.col("medicinal_product").is_not_null(),
             pl.col("medicinal_product").str.len_chars() > 0,
             # Quality filters
-            # NOTE: Removed suspect drug filter - now includes both suspect and concomitant drugs
+            _suspect_drug_only(),
             ~pl.col("reporter_qualification").is_in(EXCLUDED_REPORTERS),
         )
         .drop("patient_custom_master_age")
@@ -361,12 +380,12 @@ def _build_cohort_drug_mapping_input(
     out_path = output_dir / f"{cohort}_drug_mapping_input.parquet"
 
     if not cohort_events_path.exists():
-        logger.warning("[S03] Events file missing for cohort %s — skipping drug mapping input", cohort)
+        logger.warning("[S03] Events file missing for cohort {} — skipping drug mapping input", cohort)
         return 0
 
     if not drug_mapping_input_path.exists():
         logger.warning(
-            "[S03] drug_mapping_input.parquet not found at %s — skipping cohort drug input. "
+            "[S03] drug_mapping_input.parquet not found at {} — skipping cohort drug input. "
             "Run S02 with the new extended outputs first.",
             drug_mapping_input_path,
         )
@@ -397,13 +416,23 @@ def _build_cohort_drug_mapping_input(
         .to_series()
         .to_list()
     )
-    logger.info("[S03][%s] %d unique reports in cohort", cohort, len(cohort_report_ids))
+    logger.info("[S03][{}] {} unique reports in cohort", cohort, len(cohort_report_ids))
 
     mapping_lf = (
         pl.scan_parquet(str(drug_mapping_input_path))
         .with_columns(pl.col("safetyreportid").cast(pl.Utf8, strict=False))
         .filter(pl.col("safetyreportid").is_in(cohort_report_ids))
     )
+    map_schema = pl.scan_parquet(str(drug_mapping_input_path)).collect_schema().names()
+    if "drug_characterization" in map_schema:
+        mapping_lf = mapping_lf.filter(
+            pl.col("drug_characterization").cast(pl.Utf8, strict=False).str.starts_with("Suspect")
+        )
+    else:
+        logger.warning(
+            "[S03][{}] drug_mapping_input has no drug_characterization — cannot apply suspect-only filter",
+            cohort,
+        )
 
     # ── Step 3: Enrich with patient context ──────────────────────────────────
     enriched_lf = mapping_lf.join(
@@ -421,8 +450,72 @@ def _build_cohort_drug_mapping_input(
         .collect(streaming=True)
         .item()
     )
-    logger.info("[S03][%s] drug_mapping_input rows=%d → %s", cohort, rows, out_path)
+    logger.info("[S03][{}] drug_mapping_input rows={} → {}", cohort, rows, out_path)
     return int(rows)
+
+
+def _validate_cohort_drug_mapping(path: Path, cohort: str) -> dict:
+    """Validate cohort drug_mapping_input: row count, duplicate check, non-null coverage."""
+    if not path.exists():
+        return {}
+    try:
+        df = pl.scan_parquet(str(path))
+        total = df.select(pl.len()).collect().item()
+        if total == 0:
+            return {"rows": 0, "duplicate_safetyreportid_entry_pairs": 0, "coverage_pct": {}}
+
+        dup_count = (
+            df.group_by(["safetyreportid", "entry"])
+            .agg(pl.len().alias("_n"))
+            .filter(pl.col("_n") > 1)
+            .select(pl.len())
+            .collect()
+            .item()
+        )
+
+        key_cols = [
+            "medicinal_product",
+            "active_substance_name",
+            "openfda_rxcui",
+            "openfda_generic_name",
+            "openfda_substance_name",
+        ]
+        schema = pl.scan_parquet(str(path)).collect_schema()
+        coverage: dict = {}
+        for col in key_cols:
+            if col not in schema.names():
+                continue
+            dtype = schema[col]
+            is_list = hasattr(dtype, "inner")  # List types have .inner attribute
+            if is_list:
+                nn = (
+                    df.filter(pl.col(col).is_not_null() & (pl.col(col).list.len() > 0))
+                    .select(pl.len())
+                    .collect()
+                    .item()
+                )
+            else:
+                nn = (
+                    df.filter(
+                        pl.col(col).is_not_null()
+                        & (pl.col(col).cast(pl.Utf8, strict=False).str.len_chars() > 0)
+                    )
+                    .select(pl.len())
+                    .collect()
+                    .item()
+                )
+            coverage[col] = round(nn / total * 100, 2) if total else 0
+
+        if dup_count > 0:
+            logger.warning("[S03][{}] {} duplicate (safetyreportid, entry) in drug_mapping_input", cohort, dup_count)
+        return {
+            "rows": total,
+            "duplicate_safetyreportid_entry_pairs": dup_count,
+            "coverage_pct": coverage,
+        }
+    except Exception as e:
+        logger.warning("[S03] Validation failed for {}: {}", path, e)
+        return {"error": str(e)}
 
 
 def run(ctx: PipelineContext) -> None:
@@ -491,6 +584,12 @@ def run(ctx: PipelineContext) -> None:
         output_dir=output_dir,
     )
 
+    # Validation for cohort drug mapping inputs
+    adult_drug_mapping_path = output_dir / "adult_drug_mapping_input.parquet"
+    pediatric_drug_mapping_path = output_dir / "pediatric_drug_mapping_input.parquet"
+    adult_validation = _validate_cohort_drug_mapping(adult_drug_mapping_path, "adult")
+    pediatric_validation = _validate_cohort_drug_mapping(pediatric_drug_mapping_path, "pediatric")
+
     write_manifest(
         ctx,
         "s03_join_partition_age",
@@ -503,15 +602,19 @@ def run(ctx: PipelineContext) -> None:
             # New outputs
             "adult_drug_mapping_input_rows": adult_drug_mapping_count,
             "pediatric_drug_mapping_input_rows": pediatric_drug_mapping_count,
-            "adult_drug_mapping_input": str(output_dir / "adult_drug_mapping_input.parquet"),
-            "pediatric_drug_mapping_input": str(output_dir / "pediatric_drug_mapping_input.parquet"),
+            "adult_drug_mapping_input": str(adult_drug_mapping_path),
+            "pediatric_drug_mapping_input": str(pediatric_drug_mapping_path),
+            "validation": {
+                "adult_drug_mapping_input": adult_validation,
+                "pediatric_drug_mapping_input": pediatric_validation,
+            },
         },
     )
 
     logger.success(
         "[S03] Cohorts generated — "
-        "adult=%d, pediatric=%d | "
-        "drug_mapping adult=%d, pediatric=%d",
+        "adult={}, pediatric={} | "
+        "drug_mapping adult={}, pediatric={}",
         adult_count, pediatric_count,
         adult_drug_mapping_count, pediatric_drug_mapping_count,
     )

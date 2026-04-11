@@ -18,13 +18,7 @@ import time
 import numpy as np
 import pandas as pd
 from pandas import json_normalize
-try:
-    from dotenv import load_dotenv  # type: ignore
-    load_dotenv()
-except Exception:
-    pass
-
-# Load config for network and download tuning
+# Load config for network and download tuning (importing settings also loads .env)
 try:
     from src.settings import load_settings
     _cfg = load_settings()
@@ -358,8 +352,10 @@ def parse_patient_drug_data(results):
                     # Handled separately by parse_patient_drug_openfda_data()
                     continue
                 elif k == "activesubstance":
-                    # Flatten nested activesubstance → clean string
-                    # Old format (stored as dict/list) → "ASPIRIN" or "A|B"
+                    # Preserve raw for S02 parsing + audit; flatten for mapping
+                    entry_dict["activesubstance"] = (
+                        json.dumps(v) if isinstance(v, (dict, list)) else (str(v) if v is not None else None)
+                    )
                     entry_dict["activesubstance_name"] = _flatten_activesubstance(v)
                 elif k == "drugrecurrence" and isinstance(v, (list, dict)):
                     # drugrecurrence is nested (list of dicts); serialize to JSON string
@@ -579,6 +575,11 @@ def parsing_main(drug_event_file, file_index, total_files):
 
         try:
             patientdrug_df = parse_patient_drug_data(results)
+            # Validate (safetyreportid, entry) uniqueness per file
+            if not patientdrug_df.empty and {"safetyreportid", "entry"}.issubset(patientdrug_df.columns):
+                dup = patientdrug_df.duplicated(subset=["safetyreportid", "entry"]).sum()
+                if dup > 0:
+                    print(f"  ⚠  patient.drug: {dup} duplicate (safetyreportid, entry) in {out_file}", flush=True)
             pd_out = out_patient_drug + out_file + "_patient_drug.csv.gzip"
             if not os.path.exists(pd_out):
                 patientdrug_df.reset_index(drop=True).to_csv(pd_out, compression=_GZIP_FAST)

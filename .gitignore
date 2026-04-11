@@ -1,30 +1,87 @@
-# Python
+# =============================================================================
+# fears_dataset — what belongs in Git vs local-only
+# =============================================================================
+# Commit:  source code, scripts, small docs, notebook .ipynb, example configs.
+# Do NOT: pipeline outputs, FAERS bulk data, parquet/CSV exports, huge logs.
+# =============================================================================
+
+# --- Python ---
 __pycache__/
 *.py[cod]
+*$py.class
 *.egg-info/
+.eggs/
+dist/
+build/
+*.egg
 .venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+coverage.xml
+.coverage
+htmlcov/
 
-# Secrets & local
+# --- Secrets & machine-local ---
 .env
-.env.*
+.env.local
+.env.production
+.env.development
+# (do not use a blanket `.env.*` — it would ignore `.env.example`)
+configs/config.local.yaml
 
-# Data & outputs (user generates these)
-data/
-logs/
+# --- Large data & pipeline outputs (root-level) ---
+# data/ here is ~100s of GB: OpenFDA extracts, staging, parquet cohorts, vocab, cache.
+/data/
+/logs/
+
+# --- Tabular / columnar binaries (anywhere) ---
 *.parquet
+*.parquet.snappy
+*.feather
+*.arrow
+*.ipc
+*.orc
+*.h5
+*.hdf5
+*.pkl
+*.pickle
+*.joblib
+
+# --- CSV / gzip exports (often multi-GB; regenerate from pipeline) ---
 *.csv
 *.csv.gz
 *.csv.gzip
+*.tsv
+*.tsv.gz
 
-# SLURM logs
+# --- Jupyter: checkpoints & generated notebook outputs ---
+.ipynb_checkpoints/
+**/notebook/output/
+notebook/output/
+
+# --- Cluster / batch job spill (typical HPC stdout at repo root) ---
+/out.*
+/*.out
+/*.err
 slurm-*.out
 slurm-*.err
+s09s10_FD_*.out
+s09s10_FD_*.err
 
-# Cache
-*.pyc
-.pytest_cache/
+# --- IDE & tooling ---
+.idea/
+.vscode/
+*.swp
+*~
 .cursor-server/
+.cursor/
 
-# OS
+# --- OS ---
 .DS_Store
+Thumbs.db
+
+# --- Legacy / local scratch ---
 to_delete/

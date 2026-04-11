@@ -22,7 +22,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "${SCRIPT_DIR}/.."
 
 source ~/miniforge3/bin/activate
-CONDA_ENV=${CONDA_ENV:-can-drug-pipeline}
+CONDA_ENV=${CONDA_ENV:-fulldata}
 conda activate "${CONDA_ENV}"
 
 # Load .env file if present (for OPENFDA_API_KEY etc.)

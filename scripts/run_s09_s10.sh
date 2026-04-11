@@ -8,20 +8,21 @@
 #   bash scripts/run_s09_s10.sh
 #   # or SLURM: sbatch scripts/run_s09_s10.sh
 
-#SBATCH --job-name=s09-s10
-#SBATCH --output=logs/step6_s09s10_%j.out
-#SBATCH --partition=qgpu_gtx1070ti
+#SBATCH --job-name=s09s10_FD
+#SBATCH --partition=gpu-cluster
 #SBATCH --nodes=1
-#SBATCH --cpus-per-task=12
-#SBATCH --gres=gpu:0
-#SBATCH --mem=60G
-#SBATCH --time=4-00:00:00
+#SBATCH --cpus-per-task=16
+#SBATCH --gres=gpu:1
+#SBATCH --mem=300G
+#SBATCH --time=1-00:00:00
+#SBATCH --output=logs/s09s10_FD_%j.out
+#SBATCH --error=logs/s09s10_FD_%j.err
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-cd "${SCRIPT_DIR}/.."
+PROJECT_ROOT="/ist/users/thanyathonk/thanyathonk_bak/fears_dataset"
+cd "${PROJECT_ROOT}"
 
 source ~/miniforge3/bin/activate
-CONDA_ENV=${CONDA_ENV:-can-drug-pipeline}
+CONDA_ENV=${CONDA_ENV:-fulldata}
 conda activate "${CONDA_ENV}"
 
 RUN_ID_ROOT=${RUN_ID_ROOT:-$(date +"%Y%m%dT%H%M%S")}

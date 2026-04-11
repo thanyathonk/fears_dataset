@@ -1,3 +1,6 @@
+# Copy to config.local.yaml and adjust paths for your machine:
+#   cp configs/config.example.yaml configs/config.local.yaml
+#
 paths:
   root: .
   data_root: data
@@ -47,4 +50,3 @@ stages:
   s08_enrich_drug_identifiers: true
   s09_finalize_merge_and_report: true
   s10_package_deliverables: true
-

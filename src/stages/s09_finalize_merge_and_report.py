@@ -9,14 +9,22 @@ Filtering criteria (moved from S09 for early filtering):
 Additional filtering in S09:
 3. Valid ingredient and medicinal_product (NOTE: For full_dataset, no ingredient_count or rxcui_tty filtering)
 4. MedDRA concept mapped
+5. ``receive_date`` (parsed) must fall in ``[START_YEAR, END_YEAR]`` inclusive (same bounds as S03 timeline filter; S09 applies explicitly to ``receive_date``)
+
+Drug columns for downstream handoff (stratify analyses on ``rxcui``):
+- ``ingredient``: ``List[str]`` — RxNorm related ingredients for the mapped RxCUI (canonical per concept).
+- ``faers_ingredients``: ``List[str]`` — structured ingredients parsed from FAERS/S07b (provenance).
+- ``ingredient_count`` / ``faers_ingredient_count``: list lengths; ``is_combination_product`` if either list length > 1.
 """
 
+from datetime import date
 from pathlib import Path
 from typing import Any, Dict, List
 
 import polars as pl
 from loguru import logger
 
+from src.stages.s03_join_partition_age import END_YEAR, START_YEAR
 from src.utils.dq import dq_summary_markdown
 from src.utils.io import (
     PipelineContext,
@@ -30,7 +38,6 @@ ADULT_COLUMNS = [
     "safetyreportid",
     "age_years",
     "patient_sex",
-    "index_date",  # Primary timeline date (waterfall: mostrecent → lastupdate → receive)
     "receive_date",
     "mostrecent_receive_date",
     "lastupdate_date",
@@ -47,7 +54,11 @@ ADULT_COLUMNS = [
     "medicinal_product",
     "rxcui",
     "mapping_method",  # ✅ วิธีที่ใช้หา (rxnav_direct, local_synonym, cid_title_fallback)
-    "ingredient",      # ✅ ชื่อ ingredient มาตรฐานจาก RxNav
+    "ingredient",      # List[str] — RxNorm ingredients for this rxcui (use rxcui to count drugs)
+    "faers_ingredients",   # List[str] จาก FAERS/S07b (structured)
+    "ingredient_count",
+    "faers_ingredient_count",
+    "is_combination_product",
     "drug_characterization",
     "drug_administration",
     "drug_indication",
@@ -65,7 +76,6 @@ PEDIATRIC_COLUMNS = [
     "age_years",
     "patient_sex",
     "nichd",
-    "index_date",  # Primary timeline date (waterfall: mostrecent → lastupdate → receive)
     "receive_date",
     "mostrecent_receive_date",
     "lastupdate_date",
@@ -82,7 +92,11 @@ PEDIATRIC_COLUMNS = [
     "medicinal_product",
     "rxcui",
     "mapping_method",  # ✅ วิธีที่ใช้หา (rxnav_direct, local_synonym, cid_title_fallback)
-    "ingredient",      # ✅ ชื่อ ingredient มาตรฐานจาก RxNav
+    "ingredient",      # List[str] — RxNorm ingredients for this rxcui (use rxcui to count drugs)
+    "faers_ingredients",   # List[str] จาก FAERS/S07b (structured)
+    "ingredient_count",
+    "faers_ingredient_count",
+    "is_combination_product",
     "drug_characterization",
     "drug_administration",
     "drug_indication",
@@ -106,13 +120,96 @@ FILL_UNKNOWN_COLUMNS = [
     "Drug characterization",
 ]
 
-# Filter criteria for data quality
-# NOTE: SUSPECT_DRUG_VALUE removed - now includes both suspect and concomitant drugs
+# Filter criteria for data quality (Suspect-only drug lines are enforced in S03)
 EXCLUDED_REPORTERS = [
     "Unknown",
     "Lawyer",
     "Consumer or non-health professional"
 ]
+
+
+def _receive_date_bounds() -> tuple[date, date]:
+    return date(START_YEAR, 1, 1), date(END_YEAR, 12, 31)
+
+
+def _filter_receive_date_in_window() -> pl.Expr:
+    """Parsed ``receive_date`` in [START_YEAR, END_YEAR] inclusive; excludes null dates."""
+    d0, d1 = _receive_date_bounds()
+    return (
+        pl.col("receive_date").is_not_null()
+        & (pl.col("receive_date") >= pl.lit(d0))
+        & (pl.col("receive_date") <= pl.lit(d1))
+    )
+
+
+def _empty_list_utf8() -> pl.Expr:
+    return pl.lit([], dtype=pl.List(pl.Utf8))
+
+
+def _drug_lists_exprs(schema: pl.Schema) -> list[pl.Expr]:
+    """RxNorm list as ``ingredient`` + FAERS structured list (second with_columns adds counts)."""
+    names = schema.names()
+    dtypes = {n: schema.get(n) for n in names}
+
+    if "rxnorm_ingredients" in names:
+        rxnorm = (
+            pl.when(pl.col("rxnorm_ingredients").is_not_null())
+            .then(pl.col("rxnorm_ingredients"))
+            .otherwise(_empty_list_utf8())
+            .alias("ingredient")
+        )
+    elif "ingredients_right" in names:
+        # Legacy S08: RxNorm list before rename to rxnorm_ingredients
+        rxnorm = (
+            pl.when(pl.col("ingredients_right").is_not_null())
+            .then(pl.col("ingredients_right"))
+            .otherwise(_empty_list_utf8())
+            .alias("ingredient")
+        )
+    else:
+        rxnorm = _empty_list_utf8().alias("ingredient")
+
+    if "ingredients" in names:
+        dt = dtypes.get("ingredients")
+        dt_str = str(dt) if dt is not None else ""
+        if dt_str.startswith("List"):
+            faers = (
+                pl.when(pl.col("ingredients").is_not_null())
+                .then(pl.col("ingredients"))
+                .otherwise(_empty_list_utf8())
+                .alias("faers_ingredients")
+            )
+        else:
+            faers = (
+                pl.when(
+                    pl.col("ingredients").is_not_null()
+                    & (pl.col("ingredients").cast(pl.Utf8, strict=False).str.len_chars() > 0)
+                )
+                .then(
+                    pl.col("ingredients")
+                    .cast(pl.Utf8, strict=False)
+                    .str.split(";")
+                    .list.eval(pl.element().str.strip_chars())
+                    .list.drop_nulls()
+                )
+                .otherwise(_empty_list_utf8())
+                .alias("faers_ingredients")
+            )
+    else:
+        faers = _empty_list_utf8().alias("faers_ingredients")
+
+    return [rxnorm, faers]
+
+
+def _drug_count_exprs() -> list[pl.Expr]:
+    """Depends on columns created by ``_drug_lists_exprs``."""
+    return [
+        pl.col("ingredient").list.len().cast(pl.Int32).alias("ingredient_count"),
+        pl.col("faers_ingredients").list.len().cast(pl.Int32).alias("faers_ingredient_count"),
+        (
+            (pl.col("ingredient").list.len() > 1) | (pl.col("faers_ingredients").list.len() > 1)
+        ).alias("is_combination_product"),
+    ]
 
 
 def _format_value(value: Any) -> str:
@@ -158,7 +255,8 @@ def _finalize_cohort_streaming(cohort: str, ctx: PipelineContext) -> Dict[str, i
     mapping_dir = stage_output_path(ctx, "s06_map_omop_meddra")
 
     clean_path = clean_dir / f"{cohort}_events_full_data.parquet"
-    enriched_path = enrich_dir / f"{cohort}_drugs_enriched_final_full_data.parquet"
+    _enriched_final = enrich_dir / f"{cohort}_drugs_enriched_final_full_data.parquet"
+    enriched_path = _enriched_final if _enriched_final.exists() else enrich_dir / f"{cohort}_drugs_enriched.parquet"
     dict_path = mapping_dir / cohort / "pt_soc_dictionary_full_data.parquet"
 
     for path in (clean_path, enriched_path, dict_path):
@@ -168,16 +266,9 @@ def _finalize_cohort_streaming(cohort: str, ctx: PipelineContext) -> Dict[str, i
     clean_rows = (
         pl.scan_parquet(str(clean_path)).select(pl.len()).collect(streaming=True).item()
     )
-    # ✅ ใช้ columns หลักจาก S08: medicinal_product, rxcui, ingredients -> ingredient (string)
-    # ตรวจสอบ schema ก่อนเพื่อดูว่ามีคอลัมน์อะไรบ้างและประเภทข้อมูล
     enriched_schema = pl.scan_parquet(str(enriched_path)).collect_schema()
     has_is_selected_case = "is_selected_case" in enriched_schema
-    has_ingredients_right = "ingredients_right" in enriched_schema
-    
-    # ตรวจสอบว่า ingredients เป็น List หรือ String
-    ingredients_dtype = enriched_schema.get("ingredients")
-    is_ingredients_list = ingredients_dtype is not None and str(ingredients_dtype).startswith("List")
-    
+
     # สร้างคอลัมน์ is_selected_case ตามเงื่อนไข
     base_lf_stats = pl.scan_parquet(str(enriched_path))
     if not has_is_selected_case:
@@ -189,48 +280,11 @@ def _finalize_cohort_streaming(cohort: str, ctx: PipelineContext) -> Dict[str, i
             pl.col("is_selected_case").fill_null(pl.col("rxcui").is_not_null()).cast(pl.Boolean).alias("is_selected_case")
         )
     
-    # สร้างคอลัมน์ ingredient จาก ingredients หรือ ingredients_right
-    if has_ingredients_right:
-        # ใช้ ingredients_right (List) ถ้ามี
-        enriched_df_for_stats = (
-            base_lf_stats
-            .with_columns(
-                pl.when(pl.col("ingredients_right").list.len() > 0)
-                .then(pl.col("ingredients_right").list.first().cast(pl.Utf8))
-                .otherwise(None)
-                .alias("ingredient"),
-            )
-        )
-    elif is_ingredients_list:
-        # ใช้ ingredients ถ้าเป็น List
-        enriched_df_for_stats = (
-            base_lf_stats
-            .with_columns(
-                pl.when(pl.col("ingredients").list.len() > 0)
-                .then(pl.col("ingredients").list.first().cast(pl.Utf8))
-                .otherwise(None)
-                .alias("ingredient"),
-            )
-        )
-    else:
-        # ใช้ ingredients โดยตรงถ้าเป็น String
-        enriched_df_for_stats = (
-            base_lf_stats
-            .with_columns(
-                pl.col("ingredients").cast(pl.Utf8).alias("ingredient"),
-            )
-        )
-    
     enriched_unique = (
-        enriched_df_for_stats
-        .select(
-            pl.col("medicinal_product").cast(pl.Utf8),
-            pl.col("ingredient").cast(pl.Utf8),
-            pl.col("is_selected_case").cast(pl.Boolean),
-        )
+        base_lf_stats
         .filter(pl.col("is_selected_case") == True)
-        .filter(pl.col("ingredient").is_not_null())
-        .select(pl.col("ingredient").n_unique())
+        .filter(pl.col("rxcui").is_not_null())
+        .select(pl.col("rxcui").n_unique())
         .collect(streaming=True)
         .item()
     )
@@ -252,19 +306,11 @@ def _finalize_cohort_streaming(cohort: str, ctx: PipelineContext) -> Dict[str, i
             pl.col("reaction_meddrapt").cast(pl.Utf8, strict=False),
         )
     )
-    # ✅ ใช้ Main Columns จาก S08 Final (streaming function)
-    # แปลง ingredients เป็น ingredient (string) และสร้างคอลัมน์ที่จำเป็น
-    # ตรวจสอบ schema อีกครั้งสำหรับ enriched_lookup_lf
     enriched_schema_lookup_stream = pl.scan_parquet(str(enriched_path)).collect_schema()
     has_is_selected_case_stream = "is_selected_case" in enriched_schema_lookup_stream
     has_mapping_method_stream = "mapping_method" in enriched_schema_lookup_stream
     has_source_stream = "source" in enriched_schema_lookup_stream
-    has_ingredients_right_stream = "ingredients_right" in enriched_schema_lookup_stream
-    
-    # ตรวจสอบว่า ingredients เป็น List หรือ String
-    ingredients_dtype_stream = enriched_schema_lookup_stream.get("ingredients")
-    is_ingredients_list_stream = ingredients_dtype_stream is not None and str(ingredients_dtype_stream).startswith("List")
-    
+
     # สร้าง base lazyframe และคอลัมน์ที่จำเป็น
     base_lf_stream = pl.scan_parquet(str(enriched_path))
     
@@ -286,50 +332,32 @@ def _finalize_cohort_streaming(cohort: str, ctx: PipelineContext) -> Dict[str, i
     else:
         base_lf_stream = base_lf_stream.with_columns(pl.lit("enriched").cast(pl.Utf8).alias("mapping_method"))
     
-    # สร้างคอลัมน์ ingredient จาก ingredients หรือ ingredients_right
-    if has_ingredients_right_stream:
-        # ใช้ ingredients_right (List) ถ้ามี
-        enriched_lookup_lf = (
-            base_lf_stream
-            .with_columns(
-                pl.when(pl.col("ingredients_right").list.len() > 0)
-                .then(pl.col("ingredients_right").list.first().cast(pl.Utf8))
-                .otherwise(None)
-                .alias("ingredient"),
-            )
-        )
-    elif is_ingredients_list_stream:
-        # ใช้ ingredients ถ้าเป็น List
-        enriched_lookup_lf = (
-            base_lf_stream
-            .with_columns(
-                pl.when(pl.col("ingredients").list.len() > 0)
-                .then(pl.col("ingredients").list.first().cast(pl.Utf8))
-                .otherwise(None)
-                .alias("ingredient"),
-            )
-        )
-    else:
-        # ใช้ ingredients โดยตรงถ้าเป็น String
-        enriched_lookup_lf = (
-            base_lf_stream
-            .with_columns(
-                pl.col("ingredients").cast(pl.Utf8).alias("ingredient"),
-            )
-        )
-    
+    enriched_lookup_lf = (
+        base_lf_stream
+        .with_columns(_drug_lists_exprs(enriched_schema_lookup_stream))
+        .with_columns(_drug_count_exprs())
+    )
+
     enriched_lookup_lf = (
         enriched_lookup_lf
         .select(
-            pl.col("medicinal_product").cast(pl.Utf8),  # Key สำหรับ join
-            pl.col("rxcui"),                            # RxCUI
-            pl.col("ingredient").cast(pl.Utf8),         # ✅ ingredient มาตรฐานจาก RxNav
-            pl.col("mapping_method").cast(pl.Utf8),     # วิธีที่ใช้หา
-            pl.col("is_selected_case").cast(pl.Boolean),  # Flag สำเร็จรูป
+            pl.col("medicinal_product").cast(pl.Utf8),
+            pl.col("rxcui"),
+            pl.col("ingredient"),
+            pl.col("mapping_method").cast(pl.Utf8),
+            pl.col("is_selected_case").cast(pl.Boolean),
+            pl.col("faers_ingredients"),
+            pl.col("ingredient_count"),
+            pl.col("faers_ingredient_count"),
+            pl.col("is_combination_product"),
         )
-        .filter(pl.col("is_selected_case") == True)  # ✅ mapping_success only (no ingredient_count or rxcui_tty filtering for full_dataset)
+        .filter(pl.col("is_selected_case") == True)
         .drop_nulls("medicinal_product")
-        .filter(pl.col("ingredient").is_not_null() & (pl.col("ingredient").str.strip_chars() != ""))
+        .filter(pl.col("rxcui").is_not_null())
+        .filter(
+            (pl.col("ingredient").list.len() > 0) | (pl.col("faers_ingredients").list.len() > 0)
+        )
+        .unique(subset=["medicinal_product"], keep="first")
     )
     # First-stage join (clean x enriched) written to a temporary parquet to enforce streaming and avoid multi-join pipelines
     tmp_dir = stage_output_path(ctx, "s09_finalize_merge_and_report")
@@ -383,17 +411,21 @@ def _finalize_cohort_streaming(cohort: str, ctx: PipelineContext) -> Dict[str, i
     logger.info(f"[S09][{cohort}] Applying data quality filters...")
     processed = (
         processed
-        # ✅ is_selected_case = mapping_success only (no ingredient_count or rxcui_tty filtering for full_dataset)
-        .filter(pl.col("ingredient").is_not_null() & (pl.col("ingredient").str.strip_chars() != ""))
+        .filter(_filter_receive_date_in_window())
+        .filter(pl.col("rxcui").is_not_null())
+        .filter(
+            (pl.col("ingredient").list.len() > 0) | (pl.col("faers_ingredients").list.len() > 0)
+        )
         .filter(pl.col("medicinal_product").is_not_null())
-        # NOTE: Suspect drug filter removed - now includes both suspect and concomitant drugs
+        # Suspect-only drugs: applied in S03
         # Filter: Exclude unwanted reporters
         .filter(~pl.col("reporter_qualification").is_in(EXCLUDED_REPORTERS))
     )
     
     logger.info(
         f"[S09][{cohort}] Quality filters applied: "
-        f"All drug characterizations (suspect + concomitant), "
+        f"receive_date in [{START_YEAR},{END_YEAR}], "
+        f"Suspect drug lines (from S03), "
         f"Excluded {len(EXCLUDED_REPORTERS)} reporter types"
     )
 
@@ -473,12 +505,10 @@ def _finalize_cohort_streaming(cohort: str, ctx: PipelineContext) -> Dict[str, i
 
     if "patient_weight" in names_after_join:
         processed = processed.drop("patient_weight")
-    if "ingredient_count" in names_after_join:
-        processed = processed.drop("ingredient_count")
-    if "ingredients" in names_after_join:
-        processed = processed.drop("ingredients")
     if "rxcui_tty" in names_after_join:
         processed = processed.drop("rxcui_tty")  # Helper column used for filtering
+    if "ingredients" in names_after_join:
+        processed = processed.drop("ingredients")
 
     existing_fill = [c for c in FILL_UNKNOWN_COLUMNS if c in names_after_join]
     if existing_fill:
@@ -490,8 +520,8 @@ def _finalize_cohort_streaming(cohort: str, ctx: PipelineContext) -> Dict[str, i
         )
 
         if cohort == "adult":
-        if "nichd" in names_after_join:
-            processed = processed.drop("nichd")
+            if "nichd" in names_after_join:
+                processed = processed.drop("nichd")
 
     processed = _apply_meddra_filters(processed)
 
@@ -520,8 +550,8 @@ def _finalize_cohort_streaming(cohort: str, ctx: PipelineContext) -> Dict[str, i
 
     unique_after_schema = out_scan.collect_schema().names()
     unique_after = (
-        out_scan.select(pl.col("ingredient").cast(pl.Utf8).n_unique()).collect(streaming=True).item()
-        if "ingredient" in unique_after_schema and output_rows
+        out_scan.select(pl.col("rxcui").n_unique()).collect(streaming=True).item()
+        if "rxcui" in unique_after_schema and output_rows
         else 0
     )
 
@@ -545,7 +575,8 @@ def _finalize_cohort_duckdb(cohort: str, ctx: PipelineContext) -> Dict[str, int]
     mapping_dir = stage_output_path(ctx, "s06_map_omop_meddra")
 
     clean_path = clean_dir / f"{cohort}_events_full_data.parquet"
-    enriched_path = enrich_dir / f"{cohort}_drugs_enriched_final_full_data.parquet"
+    _enriched_final = enrich_dir / f"{cohort}_drugs_enriched_final_full_data.parquet"
+    enriched_path = _enriched_final if _enriched_final.exists() else enrich_dir / f"{cohort}_drugs_enriched.parquet"
     dict_path = mapping_dir / cohort / "pt_soc_dictionary_full_data.parquet"
 
     for path in (clean_path, enriched_path, dict_path):
@@ -665,17 +696,11 @@ def _finalize_cohort_duckdb(cohort: str, ctx: PipelineContext) -> Dict[str, int]
         fill_unknown_candidates = [c for c in FILL_UNKNOWN_COLUMNS if c in clean_cols]
         # We'll coalesce after selection where relevant; here just collect names to re-wrap later
 
-        # Base select expressions
-        # index_date - Primary timeline date (created in S03 using waterfall priority)
-        index_date_expr = (
-            "c.index_date" if "index_date" in clean_cols else "NULL::DATE AS index_date"
-        )
-
+        # Base select expressions (three FAERS dates only; no combined index_date)
         select_exprs = [
             "c.safetyreportid",
             "c.age_years" if "age_years" in clean_cols else "NULL AS age_years",
             ("COALESCE(c.patient_sex, 'Unknown') AS patient_sex" if "patient_sex" in clean_cols else "NULL AS patient_sex"),
-            index_date_expr,
             receive_date_expr,
             (mostrecent_expr or "NULL AS mostrecent_receive_date"),
             lastupdate_expr,
@@ -722,11 +747,21 @@ def _finalize_cohort_duckdb(cohort: str, ctx: PipelineContext) -> Dict[str, int]
         if "meddra_concept_id" in dict_cols:
             where_clauses.append("d.meddra_concept_id IS NOT NULL")
         
-        # NOTE: Suspect drug filter removed - now includes both suspect and concomitant drugs
+        # Suspect-only drugs: applied in S03 upstream
         # Filter: Exclude unwanted reporters
         if "reporter_qualification" in clean_cols:
             excluded_list = "', '".join(EXCLUDED_REPORTERS)
             where_clauses.append(f"c.reporter_qualification NOT IN ('{excluded_list}')")
+
+        if "receive_date" in clean_cols:
+            _rd_coalesce = (
+                "COALESCE(try_cast(c.receive_date AS DATE), "
+                "try_strptime(c.receive_date::VARCHAR, '%Y%m%d'), "
+                "try_strptime(c.receive_date::VARCHAR, '%Y-%m-%d'))"
+            )
+            where_clauses.append(f"({_rd_coalesce}) IS NOT NULL")
+            where_clauses.append(f"({_rd_coalesce}) >= DATE '{START_YEAR}-01-01'")
+            where_clauses.append(f"({_rd_coalesce}) <= DATE '{END_YEAR}-12-31'")
 
         base_query = f"""
             WITH enriched AS (
@@ -784,7 +819,8 @@ def _finalize_cohort_polars_batched(cohort: str, ctx: PipelineContext) -> Dict[s
     mapping_dir = stage_output_path(ctx, "s06_map_omop_meddra")
 
     clean_path = clean_dir / f"{cohort}_events_full_data.parquet"
-    enriched_path = enrich_dir / f"{cohort}_drugs_enriched_final_full_data.parquet"
+    _enriched_final = enrich_dir / f"{cohort}_drugs_enriched_final_full_data.parquet"
+    enriched_path = _enriched_final if _enriched_final.exists() else enrich_dir / f"{cohort}_drugs_enriched.parquet"
     dict_path = mapping_dir / cohort / "pt_soc_dictionary_full_data.parquet"
 
     for path in (clean_path, enriched_path, dict_path):
@@ -794,13 +830,10 @@ def _finalize_cohort_polars_batched(cohort: str, ctx: PipelineContext) -> Dict[s
     clean_rows = (
         pl.scan_parquet(str(clean_path)).select(pl.len()).collect(streaming=True).item()
     )
-    # ✅ ใช้ columns หลักจาก S08: medicinal_product, rxcui, ingredients (list) -> ingredient (string)
-    # แปลง ingredients (list) เป็น ingredient (string) โดยใช้ element แรก
     # ตรวจสอบ schema ก่อนเพื่อดูว่ามีคอลัมน์อะไรบ้าง
     enriched_schema = pl.scan_parquet(str(enriched_path)).collect_schema()
     has_is_selected_case = "is_selected_case" in enriched_schema
-    
-    # สร้างคอลัมน์ is_selected_case ตามเงื่อนไข
+
     base_lf_stats = pl.scan_parquet(str(enriched_path))
     if not has_is_selected_case:
         base_lf_stats = base_lf_stats.with_columns(
@@ -810,27 +843,12 @@ def _finalize_cohort_polars_batched(cohort: str, ctx: PipelineContext) -> Dict[s
         base_lf_stats = base_lf_stats.with_columns(
             pl.col("is_selected_case").fill_null(pl.col("rxcui").is_not_null()).cast(pl.Boolean).alias("is_selected_case")
         )
-    
-    enriched_df_for_stats = (
-        base_lf_stats
-        .with_columns(
-            # แปลง ingredients (list) เป็น ingredient (string) - ใช้ element แรก
-            pl.when(pl.col("ingredients").list.len() > 0)
-            .then(pl.col("ingredients").list.first().cast(pl.Utf8))
-            .otherwise(None)
-            .alias("ingredient"),
-        )
-    )
+
     enriched_unique = (
-        enriched_df_for_stats
-        .select(
-            pl.col("medicinal_product").cast(pl.Utf8),
-            pl.col("ingredient").cast(pl.Utf8),
-            pl.col("is_selected_case").cast(pl.Boolean),
-        )
+        base_lf_stats
         .filter(pl.col("is_selected_case") == True)
-        .filter(pl.col("ingredient").is_not_null())
-        .select(pl.col("ingredient").n_unique())
+        .filter(pl.col("rxcui").is_not_null())
+        .select(pl.col("rxcui").n_unique())
         .collect(streaming=True)
         .item()
     )
@@ -852,22 +870,16 @@ def _finalize_cohort_polars_batched(cohort: str, ctx: PipelineContext) -> Dict[s
             pl.col("reaction_meddrapt").cast(pl.Utf8, strict=False),
         )
     )
-    # ✅ ใช้ Main Columns จาก S08 Final (batched function)
-    # แปลง ingredients เป็น ingredient (string) และสร้างคอลัมน์ที่จำเป็น
-    # ตรวจสอบ schema ก่อนเพื่อดูว่ามีคอลัมน์อะไรบ้างและประเภทข้อมูล
+    # S08 final → ``ingredient`` = List[str] (RxNorm), ``faers_ingredients`` = FAERS structured
     enriched_schema_lookup = pl.scan_parquet(str(enriched_path)).collect_schema()
     has_is_selected_case_lookup = "is_selected_case" in enriched_schema_lookup
     has_mapping_method_lookup = "mapping_method" in enriched_schema_lookup
     has_source_lookup = "source" in enriched_schema_lookup
-    has_ingredients_right_lookup = "ingredients_right" in enriched_schema_lookup
-    
-    # ตรวจสอบว่า ingredients เป็น List หรือ String
-    ingredients_dtype_lookup = enriched_schema_lookup.get("ingredients")
-    is_ingredients_list_lookup = ingredients_dtype_lookup is not None and str(ingredients_dtype_lookup).startswith("List")
-    
+    has_lookup_hit = "lookup_hit" in enriched_schema_lookup
+
     # สร้างคอลัมน์ is_selected_case และ mapping_method ตามเงื่อนไข
     base_lf = pl.scan_parquet(str(enriched_path))
-    
+
     # สร้างคอลัมน์ is_selected_case
     if not has_is_selected_case_lookup:
         base_lf = base_lf.with_columns(
@@ -877,60 +889,43 @@ def _finalize_cohort_polars_batched(cohort: str, ctx: PipelineContext) -> Dict[s
         base_lf = base_lf.with_columns(
             pl.col("is_selected_case").fill_null(pl.col("rxcui").is_not_null()).cast(pl.Boolean).alias("is_selected_case")
         )
-    
-    # สร้างคอลัมน์ mapping_method
+
+    # สร้างคอลัมน์ mapping_method (ใช้ lookup_hit จาก S08 ถ้ามี)
     if has_mapping_method_lookup:
         base_lf = base_lf.with_columns(pl.col("mapping_method").cast(pl.Utf8).alias("mapping_method"))
+    elif has_lookup_hit:
+        base_lf = base_lf.with_columns(pl.col("lookup_hit").cast(pl.Utf8).alias("mapping_method"))
     elif has_source_lookup:
         base_lf = base_lf.with_columns(pl.col("source").cast(pl.Utf8).alias("mapping_method"))
     else:
         base_lf = base_lf.with_columns(pl.lit("enriched").cast(pl.Utf8).alias("mapping_method"))
-    
-    # สร้างคอลัมน์ ingredient จาก ingredients หรือ ingredients_right
-    if has_ingredients_right_lookup:
-        # ใช้ ingredients_right (List) ถ้ามี
-        enriched_lookup_lf = (
-            base_lf
-            .with_columns(
-                pl.when(pl.col("ingredients_right").list.len() > 0)
-                .then(pl.col("ingredients_right").list.first().cast(pl.Utf8))
-                .otherwise(None)
-                .alias("ingredient"),
-            )
-        )
-    elif is_ingredients_list_lookup:
-        # ใช้ ingredients ถ้าเป็น List
-        enriched_lookup_lf = (
-            base_lf
-            .with_columns(
-                pl.when(pl.col("ingredients").list.len() > 0)
-                .then(pl.col("ingredients").list.first().cast(pl.Utf8))
-                .otherwise(None)
-                .alias("ingredient"),
-            )
-        )
-    else:
-        # ใช้ ingredients โดยตรงถ้าเป็น String
-        enriched_lookup_lf = (
-            base_lf
-            .with_columns(
-                pl.col("ingredients").cast(pl.Utf8).alias("ingredient"),
-            )
-        )
-    
-    # Select และ filter คอลัมน์ที่จำเป็น
+
+    enriched_lookup_lf = (
+        base_lf
+        .with_columns(_drug_lists_exprs(enriched_schema_lookup))
+        .with_columns(_drug_count_exprs())
+    )
+
     enriched_lookup_lf = (
         enriched_lookup_lf
         .select(
-            pl.col("medicinal_product").cast(pl.Utf8),  # Key สำหรับ join
-            pl.col("rxcui"),                            # RxCUI
-            pl.col("ingredient").cast(pl.Utf8),         # ✅ ingredient มาตรฐานจาก RxNav
-            pl.col("mapping_method").cast(pl.Utf8),     # วิธีที่ใช้หา
-            pl.col("is_selected_case").cast(pl.Boolean),  # Flag สำเร็จรูป
+            pl.col("medicinal_product").cast(pl.Utf8),
+            pl.col("rxcui"),
+            pl.col("ingredient"),
+            pl.col("mapping_method").cast(pl.Utf8),
+            pl.col("is_selected_case").cast(pl.Boolean),
+            pl.col("faers_ingredients"),
+            pl.col("ingredient_count"),
+            pl.col("faers_ingredient_count"),
+            pl.col("is_combination_product"),
         )
-        .filter(pl.col("is_selected_case") == True)  # ✅ mapping_success only (no ingredient_count or rxcui_tty filtering for full_dataset)
+        .filter(pl.col("is_selected_case") == True)
         .drop_nulls("medicinal_product")
-        .filter(pl.col("ingredient").is_not_null() & (pl.col("ingredient").str.strip_chars() != ""))
+        .filter(pl.col("rxcui").is_not_null())
+        .filter(
+            (pl.col("ingredient").list.len() > 0) | (pl.col("faers_ingredients").list.len() > 0)
+        )
+        .unique(subset=["medicinal_product"], keep="first")
     )
     # Load PT->SOC dictionary (Title Case mapping from Stage 6)
     soc_dict_df = pl.read_parquet(str(dict_path))
@@ -940,6 +935,7 @@ def _finalize_cohort_polars_batched(cohort: str, ctx: PipelineContext) -> Dict[s
     
     logger.info(
         f"[S09][{cohort}] Quality filters: "
+        f"receive_date in [{START_YEAR},{END_YEAR}], "
         f"Suspect drugs only, "
         f"Excluded reporters: {', '.join(EXCLUDED_REPORTERS)}"
     )
@@ -1018,9 +1014,10 @@ def _finalize_cohort_polars_batched(cohort: str, ctx: PipelineContext) -> Dict[s
         # Apply quality filters (Note: drug_characterization and reporter filters moved to S03)
         processed = (
             processed
+            .filter(_filter_receive_date_in_window())
             # ✅ is_selected_case = mapping_success only (no ingredient_count or rxcui_tty filtering for full_dataset)
             .filter(pl.col("medicinal_product").is_not_null())
-            # NOTE: Suspect drug filter removed - now includes both suspect and concomitant drugs
+            # Suspect-only drugs: applied in S03
             # Filter: Exclude unwanted reporters
             .filter(~pl.col("reporter_qualification").is_in(EXCLUDED_REPORTERS))
         )
@@ -1085,12 +1082,10 @@ def _finalize_cohort_polars_batched(cohort: str, ctx: PipelineContext) -> Dict[s
 
         if "patient_weight" in names_after_join:
             processed = processed.drop("patient_weight")
-        if "ingredient_count" in names_after_join:
-            processed = processed.drop("ingredient_count")
-        if "ingredients" in names_after_join:
-            processed = processed.drop("ingredients")
         if "rxcui_tty" in names_after_join:
             processed = processed.drop("rxcui_tty")  # Helper column used for filtering
+        if "ingredients" in names_after_join:
+            processed = processed.drop("ingredients")
 
         existing_fill = [c for c in FILL_UNKNOWN_COLUMNS if c in names_after_join]
         if existing_fill:
@@ -1103,6 +1098,33 @@ def _finalize_cohort_polars_batched(cohort: str, ctx: PipelineContext) -> Dict[s
             processed = processed.drop("nichd")
 
         processed = _apply_meddra_filters(processed)
+
+        # ─── Deduplicate: 1 row per (report, drug, reaction) ─────────────────
+        # FAERS source data can have the same drug listed multiple times in one
+        # report (e.g., as both Suspect AND Concomitant, or with different
+        # dosage routes).  We keep the most informative characterisation:
+        #   Suspect  (priority 0) > Interacting (1) > Concomitant (2) > other (3)
+        dedup_keys = ["safetyreportid", "medicinal_product", "reaction_meddrapt"]
+        final_names_before_dedup = processed.collect_schema().names()
+        dedup_keys_present = [c for c in dedup_keys if c in final_names_before_dedup]
+        if len(dedup_keys_present) == 3:
+            if "drug_characterization" in final_names_before_dedup:
+                processed = (
+                    processed
+                    .with_columns(
+                        pl.when(pl.col("drug_characterization").str.starts_with("Suspect")).then(pl.lit(0))
+                        .when(pl.col("drug_characterization").str.starts_with("Interacting")).then(pl.lit(1))
+                        .when(pl.col("drug_characterization").str.starts_with("Concomitant")).then(pl.lit(2))
+                        .otherwise(pl.lit(3))
+                        .cast(pl.Int8)
+                        .alias("_char_prio")
+                    )
+                    .sort("_char_prio", nulls_last=True)
+                    .unique(subset=dedup_keys_present, keep="first", maintain_order=False)
+                    .drop("_char_prio")
+                )
+            else:
+                processed = processed.unique(subset=dedup_keys_present, keep="first", maintain_order=False)
 
         # Select only target columns (this automatically excludes helper columns)
         final_names = processed.collect_schema().names()
@@ -1144,8 +1166,8 @@ def _finalize_cohort_polars_batched(cohort: str, ctx: PipelineContext) -> Dict[s
     missing_rows = output_rows - mapped_rows
     unique_after_schema = out_scan.collect_schema().names()
     unique_after = (
-        out_scan.select(pl.col("ingredient").cast(pl.Utf8).n_unique()).collect(streaming=True).item()
-        if "ingredient" in unique_after_schema and output_rows else 0
+        out_scan.select(pl.col("rxcui").n_unique()).collect(streaming=True).item()
+        if "rxcui" in unique_after_schema and output_rows else 0
     )
 
     stats = {
@@ -1168,7 +1190,7 @@ def run(ctx: PipelineContext) -> None:
         _log_box(cohort, "Finalize cohort", status="start")
         # Use Polars batched backend to avoid OOM
         stats = _finalize_cohort_polars_batched(cohort, ctx)
-        out_path = output_dataset_path(ctx, cohort, "patient_report_reporter_drug_reaction.parquet")
+        out_path = output_dataset_path(ctx, cohort, "patient_report_reporter_drug_reaction_full_data.parquet")
         out_scan = pl.scan_parquet(str(out_path)) if out_path.exists() else None
 
         after = stats.get("output_rows", 0)
@@ -1244,11 +1266,14 @@ def _render_dataset_readme(ctx: PipelineContext, adult_rows: int, pediatric_rows
         fh.write("## Key Columns\n")
         fh.write("- `safetyreportid`: OpenFDA safety report identifier\n")
         fh.write("- `age_years`: Patient age in years\n")
-        fh.write("- `medicinal_product_clean`: Normalised drug name\n")
+        fh.write("- `medicinal_product`: Reported drug name (FAERS)\n")
         fh.write("- `reaction_meddrapt`: Reported reaction term\n")
         fh.write("- `meddra_concept_*`: Linked OMOP/MedDRA identifiers\n")
         fh.write("- `rxcui`: RxNorm concept identifier\n")
-        fh.write("- `ingredient`: Primary ingredient after RxNorm expansion\n\n")
+        fh.write("- `rxcui`: RxNorm concept — **use this to count distinct drugs** (ROR/PRR, rankings)\n")
+        fh.write("- `ingredient`: List[str] — RxNorm ingredients for this rxcui\n")
+        fh.write("- `faers_ingredients`: List[str] — structured ingredients from FAERS/S07b\n")
+        fh.write("- `ingredient_count`, `faers_ingredient_count`, `is_combination_product`\n\n")
         fh.write("## Summary\n")
         fh.write(f"- Adult rows: {adult_rows:,}\n")
         fh.write(f"- Pediatric rows: {pediatric_rows:,}\n")
