@@ -59,29 +59,51 @@ def create_sample(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Step 1: Sample report IDs from patient table
+    # Use streaming to avoid OOM on large parquets (patient.parquet can be 10+ GB)
     patient_path = source_dir / "patient.parquet"
     if not patient_path.exists():
         print(f"ERROR: {patient_path} not found. Is source_dir correct?", file=sys.stderr)
         sys.exit(1)
 
-    print(f"Reading patient table from {patient_path}...")
-    all_ids = (
+    print(f"Reading patient table from {patient_path} (streaming)...")
+
+    # Only read the safetyreportid column to minimize memory usage
+    total_unique = (
+        pl.scan_parquet(patient_path)
+        .select(pl.col("safetyreportid"))
+        .unique()
+        .select(pl.len())
+        .collect(streaming=True)
+        .item()
+    )
+    print(f"  Total unique reports: {total_unique:,}")
+
+    # Sample by reading a small head and picking random IDs
+    # Strategy: read only the ID column, take a larger slice, then sample in-memory
+    sample_n = min(n_reports, total_unique)
+    # Read just the ID column with streaming, shuffle via hash, take top N
+    sampled_ids = (
         pl.scan_parquet(patient_path)
         .select(pl.col("safetyreportid").cast(pl.Utf8))
         .unique()
-        .collect()
+        .with_columns(
+            # Deterministic pseudo-random sort using hash + seed
+            (pl.col("safetyreportid").hash(seed=seed)).alias("_hash")
+        )
+        .sort("_hash")
+        .head(sample_n)
+        .select("safetyreportid")
+        .collect(streaming=True)
     )
-    total_unique = all_ids.height
-    print(f"  Total unique reports: {total_unique:,}")
-
-    # Random sample
-    sample_n = min(n_reports, total_unique)
-    sampled_ids = all_ids.sample(n=sample_n, seed=seed)
     report_id_list = sampled_ids["safetyreportid"].to_list()
-    print(f"  Sampled {sample_n:,} reports (seed={seed})")
+    print(f"  Sampled {len(report_id_list):,} reports (seed={seed})")
+    del sampled_ids  # free memory
 
-    # Step 2: Filter each ER table and write
-    manifest = {"n_reports_sampled": sample_n, "seed": seed, "tables": {}}
+    # Step 2: Filter each ER table and write (one at a time to keep memory low)
+    manifest = {"n_reports_sampled": len(report_id_list), "seed": seed, "tables": {}}
+
+    # Convert to a set for fast lookup and a small Series for Polars is_in
+    report_id_set = set(report_id_list)
 
     for table_name in ER_TABLES + OPTIONAL_TABLES:
         src_path = source_dir / f"{table_name}.parquet"
@@ -102,17 +124,18 @@ def create_sample(
             # Table doesn't have safetyreportid — copy as-is (e.g., reference tables)
             print(f"(no safetyreportid, copying full table)", flush=True)
             shutil.copy2(src_path, dst_path)
-            row_count = pl.scan_parquet(dst_path).select(pl.len()).collect().item()
+            row_count = pl.scan_parquet(dst_path).select(pl.len()).collect(streaming=True).item()
         else:
-            # Filter by sampled report IDs
+            # Filter by sampled report IDs using streaming to avoid OOM
             filtered = (
                 pl.scan_parquet(src_path)
                 .with_columns(pl.col("safetyreportid").cast(pl.Utf8, strict=False))
                 .filter(pl.col("safetyreportid").is_in(report_id_list))
-                .collect()
+                .collect(streaming=True)
             )
             filtered.write_parquet(dst_path, compression="zstd")
             row_count = filtered.height
+            del filtered  # free memory immediately
 
         manifest["tables"][table_name] = {
             "rows": row_count,
@@ -129,8 +152,12 @@ def create_sample(
     return manifest
 
 
-def copy_vocab(source_vocab_dir: Path, output_vocab_dir: Path) -> None:
-    """Copy essential OMOP vocabulary files for MedDRA mapping (S06/S06b)."""
+def link_vocab(source_vocab_dir: Path, output_vocab_dir: Path) -> None:
+    """Symlink essential OMOP vocabulary files for MedDRA mapping (S06/S06b).
+
+    Uses symlinks instead of copying to avoid OOM and save disk space.
+    Vocabulary files can be several GB each.
+    """
     vocab_subdir = "vocabulary_SNOMED_MEDDRA_RxNorm_ATC"
     src = source_vocab_dir / vocab_subdir
     dst = output_vocab_dir / vocab_subdir
@@ -148,11 +175,13 @@ def copy_vocab(source_vocab_dir: Path, output_vocab_dir: Path) -> None:
     dst.mkdir(parents=True, exist_ok=True)
     for fname in essential_files:
         src_file = src / fname
+        dst_file = dst / fname
         if src_file.exists():
-            print(f"  Copying {fname}...", end=" ", flush=True)
-            shutil.copy2(src_file, dst / fname)
             size_mb = src_file.stat().st_size / (1024 * 1024)
-            print(f"({size_mb:.0f} MB)")
+            if dst_file.exists() or dst_file.is_symlink():
+                dst_file.unlink()
+            dst_file.symlink_to(src_file.resolve())
+            print(f"  Linked {fname} ({size_mb:.0f} MB)")
         else:
             print(f"  WARNING: {fname} not found in {src}")
 
@@ -213,9 +242,9 @@ def main():
     )
 
     if args.copy_vocab:
-        print("\n--- Copying vocabulary files ---")
+        print("\n--- Linking vocabulary files ---")
         output_vocab = args.output_dir.parent / "vocab"
-        copy_vocab(args.vocab_dir, output_vocab)
+        link_vocab(args.vocab_dir, output_vocab)
 
     print("\n" + "=" * 60)
     print("DONE — Sample data ready for testing")
