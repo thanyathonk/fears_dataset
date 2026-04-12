@@ -1,0 +1,62 @@
+# Test configuration — uses sample data (1K reports) for pipeline validation.
+#
+# Usage:
+#   PIPELINE_CONFIG=configs/config.test.yaml python -m src.cli run-stage s03_join_partition_age
+#
+# Create sample data first:
+#   python scripts/create_test_sample.py --source-dir data/staging/s02_entity_format --copy-vocab
+
+paths:
+  root: .
+  data_root: data/test_sample
+  staging_root: data/test_sample/staging
+  output_root: data/test_output
+  logs_root: logs
+  vocab_root: data/test_sample/vocab
+  cache_root: data/test_sample/cache
+
+openfda:
+  parallel_downloads: 2
+  chunk_size: 16777216
+  retry_attempts: 2
+  retry_backoff_seconds: 1.0
+
+cohorts:
+  age_cutoff: 21
+
+rxnorm:
+  concurrency: 3
+  throttle_seconds: 0.1
+
+chemistry:
+  include_drugbank: false
+
+llm:
+  enabled: false
+
+huggingface:
+  repo_id: ""
+  private: false
+
+metadata:
+  owner: test-runner
+  max_rows_per_table: 0
+  prefer_er_tables: true
+  er_tables_path: data/test_sample/er_tables
+  finalize_chunk_rows: 100000
+  # Tell S03 where S02 output lives (the sample)
+  s02_stream_stage: s02_entity_format
+
+stages:
+  s01_fetch_openfda: false       # Skip — use pre-existing sample data
+  s02_entity_format: false       # Skip — use pre-existing sample data
+  s02_openfda_high_memory: false
+  s03_join_partition_age: true
+  s05_split_adr: true
+  s06_map_omop_meddra: true
+  s06b_map_omop_meddra_full_hierarchy: true
+  s07_split_drug: true
+  s07b_llm_clean: false          # Skip — requires GPU/LLM model
+  s08_enrich_drug_identifiers: true
+  s09_finalize_merge_and_report: true
+  s10_package_deliverables: true

@@ -4,7 +4,7 @@
 # Prerequisite: Step 4 (S07b) and Step 5 (S08) must be complete.
 #
 # Usage:
-#   cd /share/galaxy/thanyathon/candrug_pipeline/full_dataset
+#   cd /path/to/fears_dataset
 #   bash scripts/run_s09_s10.sh
 #   # or SLURM: sbatch scripts/run_s09_s10.sh
 
@@ -18,8 +18,8 @@
 #SBATCH --output=logs/s09s10_FD_%j.out
 #SBATCH --error=logs/s09s10_FD_%j.err
 
-PROJECT_ROOT="/ist/users/thanyathonk/thanyathonk_bak/fears_dataset"
-cd "${PROJECT_ROOT}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "${SCRIPT_DIR}/.."
 
 source ~/miniforge3/bin/activate
 CONDA_ENV=${CONDA_ENV:-fulldata}

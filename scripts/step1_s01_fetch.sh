@@ -11,7 +11,7 @@
 #   S01_JOBS=20 bash scripts/step1_s01_fetch.sh   # 20 concurrent downloads (fast network)
 #
 # Usage:
-#   cd /share/galaxy/thanyathon/candrug_pipeline/full_dataset
+#   cd /path/to/fears_dataset
 #   tmux new-session -s s01 "bash scripts/step1_s01_fetch.sh"
 #   # or directly:
 #   bash scripts/step1_s01_fetch.sh

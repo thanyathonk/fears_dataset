@@ -19,6 +19,7 @@ import polars as pl
 from loguru import logger
 from tqdm import tqdm
 
+from src.utils.dates import parse_date_column
 from src.utils.io import PipelineContext, stage_output_path, write_manifest
 
 # Early quality filters (moved from S04 for better performance)
@@ -32,9 +33,12 @@ EXCLUDED_REPORTERS = [
 # ============================================================================
 # Date Filtering Configuration
 # ============================================================================
-# กำหนดช่วงเวลาที่ต้องการกรองข้อมูล (inclusive)
+# Date range filter bounds (inclusive)
 START_YEAR = 2014
 END_YEAR = 2025
+
+# Maximum plausible human age in years (used to filter data-entry errors)
+MAX_PLAUSIBLE_AGE = 120
 
 
 def _suspect_drug_only() -> pl.Expr:
@@ -100,17 +104,8 @@ def _prepare_patient(ctx: PipelineContext) -> pl.LazyFrame:
     )
 
 
-def _parse_date_column(col_name: str) -> pl.Expr:
-    """
-    Parse a date column with multiple format fallbacks.
-    Supports: Date type, YYYYMMDD string, YYYY-MM-DD string.
-    Returns null if parsing fails (equivalent to errors='coerce').
-    """
-    return pl.coalesce([
-        pl.col(col_name).cast(pl.Date, strict=False),
-        pl.col(col_name).cast(pl.Utf8, strict=False).str.strptime(pl.Date, format="%Y%m%d", strict=False),
-        pl.col(col_name).cast(pl.Utf8, strict=False).str.strptime(pl.Date, format="%Y-%m-%d", strict=False),
-    ]).alias(col_name)
+# Alias for backward compatibility (now lives in src.utils.dates)
+_parse_date_column = parse_date_column
 
 
 def _prepare_report(ctx: PipelineContext) -> pl.LazyFrame:
@@ -256,7 +251,7 @@ def _add_age_bands(patient: pl.LazyFrame) -> pl.LazyFrame:
     return patient.with_columns(nichd)
 
 
-def _build_pediatric(
+def _build_cohort(
     patient: pl.LazyFrame,
     report: pl.LazyFrame,
     report_serious: pl.LazyFrame,
@@ -264,66 +259,23 @@ def _build_pediatric(
     drug: pl.LazyFrame,
     reaction: pl.LazyFrame,
     *,
+    age_filter: pl.Expr,
+    add_nichd: bool,
     output_path: Path,
 ) -> int:
-    cutoff = 21.0
-    # age >= 0 to include infants/neonates who floor to 0 after S01 conversion
-    pediatric = patient.filter(
-        (pl.col("patient_custom_master_age") >= 0) & (pl.col("patient_custom_master_age") <= cutoff)
-    )
-    pediatric = _add_age_bands(pediatric).filter(pl.col("nichd").is_not_null())
+    """Build a single cohort (adult or pediatric) by joining ER tables and applying quality filters.
+
+    Args:
+        age_filter: Polars expression to filter patient rows by age range.
+        add_nichd:  If True, add NICHD age bands and require non-null nichd (pediatric).
+        output_path: Where to write the cohort parquet.
+    """
+    cohort_patients = patient.filter(age_filter)
+    if add_nichd:
+        cohort_patients = _add_age_bands(cohort_patients).filter(pl.col("nichd").is_not_null())
 
     joined = (
-        pediatric
-        .join(report, on="safetyreportid", how="inner")
-        .join(report_serious, on="safetyreportid", how="inner")
-        .join(reporter, on="safetyreportid", how="inner")
-        .join(drug, on="safetyreportid", how="inner")
-        .join(reaction, on="safetyreportid", how="inner")
-        # Apply early quality filters
-        .filter(
-            # Basic validation
-            pl.col("safetyreportid").is_not_null(),
-            # Exclude FAERS composite keys (e.g. 4816137-9); downstream expects digits-only IDs
-            pl.col("safetyreportid").str.contains(r"^\d+$"),
-            pl.col("reaction_meddrapt").is_not_null(),
-            pl.col("medicinal_product").is_not_null(),
-            pl.col("medicinal_product").str.len_chars() > 0,
-            # Quality filters
-            _suspect_drug_only(),
-            ~pl.col("reporter_qualification").is_in(EXCLUDED_REPORTERS),
-        )
-        .drop("patient_custom_master_age")
-    )
-
-    joined.sink_parquet(output_path, compression="zstd", statistics=True)
-
-    count = (
-        pl.scan_parquet(output_path)
-        .select(pl.len())
-        .collect(streaming=True)
-        .item()
-    )
-    return int(count)
-
-
-def _build_adult(
-    patient: pl.LazyFrame,
-    report: pl.LazyFrame,
-    report_serious: pl.LazyFrame,
-    reporter: pl.LazyFrame,
-    drug: pl.LazyFrame,
-    reaction: pl.LazyFrame,
-    *,
-    output_path: Path,
-) -> int:
-    cutoff = 21.0
-    adult = patient.filter(
-        (pl.col("patient_custom_master_age") > cutoff) & (pl.col("patient_custom_master_age") <= 120)
-    )
-
-    joined = (
-        adult
+        cohort_patients
         .join(report, on="safetyreportid", how="inner")
         .join(report_serious, on="safetyreportid", how="inner")
         .join(reporter, on="safetyreportid", how="inner")
@@ -532,28 +484,25 @@ def run(ctx: PipelineContext) -> None:
     adult_path = output_dir / "adult_events_full_data.parquet"
     pediatric_path = output_dir / "pediatric_events_full_data.parquet"
 
-    # ── Original cohort builds (backward-compatible) ──────────────────────────
+    # ── Build cohorts ───────────────────────────────────────────────────────────
+    age_cutoff = float(ctx.config.cohorts.age_cutoff)
+    age_col = pl.col("patient_custom_master_age")
+
     for _ in tqdm(range(1), desc="build pediatric cohort"):
         pass
-    pediatric_count = _build_pediatric(
-        patient_lf,
-        report_lf,
-        report_serious_lf,
-        reporter_lf,
-        drug_lf,
-        reaction_lf,
+    pediatric_count = _build_cohort(
+        patient_lf, report_lf, report_serious_lf, reporter_lf, drug_lf, reaction_lf,
+        age_filter=(age_col >= 0) & (age_col <= age_cutoff),
+        add_nichd=True,
         output_path=pediatric_path,
     )
 
     for _ in tqdm(range(1), desc="build adult cohort"):
         pass
-    adult_count = _build_adult(
-        patient_lf,
-        report_lf,
-        report_serious_lf,
-        reporter_lf,
-        drug_lf,
-        reaction_lf,
+    adult_count = _build_cohort(
+        patient_lf, report_lf, report_serious_lf, reporter_lf, drug_lf, reaction_lf,
+        age_filter=(age_col > age_cutoff) & (age_col <= MAX_PLAUSIBLE_AGE),
+        add_nichd=False,
         output_path=adult_path,
     )
 

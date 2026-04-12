@@ -1,12 +1,15 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# ## openFDA Drug Event data parsing, processing, and output
+"""Stage S01 – Fetch and parse OpenFDA Drug Event data.
 
-# import libraries
+Downloads quarterly FAERS JSON archives from the OpenFDA API, extracts them
+in memory, and writes flattened CSV shards for report, patient, drug,
+drug-openfda, and reaction entities.  Each shard corresponds to one FDA
+partition file.
 
-# In[1]:
-
+Output directory: ``data/openFDA_drug_event/{entity}/``
+"""
 
 import os
 import io
@@ -14,6 +17,7 @@ import urllib
 import requests
 import zipfile
 import json
+import logging
 import time
 import numpy as np
 import pandas as pd
@@ -44,6 +48,14 @@ _out_paths: dict = {}  # keys: out, out_meta, out_report, out_patient, ...
 
 # Fastest gzip level for intermediate files (speed >> compression ratio)
 _GZIP_FAST = {"method": "gzip", "compresslevel": 1}
+
+_log = logging.getLogger(__name__)
+
+# Age unit conversion constants (FAERS reports age in various units)
+AGE_MONTHS_PER_YEAR = 12.0
+AGE_WEEKS_PER_YEAR = 52.0
+AGE_DAYS_PER_YEAR = 365.0
+AGE_HOURS_PER_YEAR = 8760.0
 
 
 def _apply_enum_map(series: pd.Series, value_dict: dict) -> pd.Series:
@@ -96,14 +108,16 @@ def _http_get_text(url: str, timeout: int, max_retries: int, backoff_seconds: fl
     raise last_exc
 
 
-# ## functions
-
-# ### retrive data from files
-
-# In[13]:
-
 
 def request_and_generate_data(drug_event_file, headers=None, stream=True, timeout=_timeout, max_retries=_retries, backoff_seconds=_backoff, chunk_size=_chunk_size):
+    """Download a single FAERS partition ZIP, extract JSON in-memory, and return parsed data.
+
+    Returns:
+        tuple: (data_dict, download_time_seconds, download_size_bytes)
+
+    Raises:
+        The last exception if all retry attempts fail.
+    """
     # headers=None sentinel: use module-level dict (populated by run() before workers start)
     if headers is None:
         headers = globals()["headers"]
@@ -136,29 +150,21 @@ def request_and_generate_data(drug_event_file, headers=None, stream=True, timeou
     raise last_exc
 
 
-# ### report data formatting/mapping function
-
-# In[14]:
-
-
 def report_formatter(df):
+    """Apply OpenFDA enum mappings to top-level report columns (e.g. serious, receiptdateformat)."""
     attributes_dict = attribute_map["properties"]
     cols = np.intersect1d(list(attributes_dict.keys()), df.columns)
     for col in cols:
         try:
             if attributes_dict[col]["possible_values"]["type"] == "one_of":
                 df[col] = _apply_enum_map(df[col], attributes_dict[col]["possible_values"]["value"])
-        except Exception:
-            pass
+        except Exception as e:
+            _log.debug("report_formatter: skipping enum map for column '%s': %s", col, e)
     return df
 
 
-# ### report primarysource formatting/mapping function
-
-# In[15]:
-
-
 def primarysource_formatter(df):
+    """Apply OpenFDA enum mappings to primarysource.* columns (e.g. qualification)."""
     keyword = "primarysource"
     attributes_dict = attribute_map["properties"][keyword]["properties"]
     cols = np.intersect1d(
@@ -169,32 +175,28 @@ def primarysource_formatter(df):
             if attributes_dict[col]["possible_values"]["type"] == "one_of":
                 full_col = keyword + "." + col
                 df[full_col] = _apply_enum_map(df[full_col], attributes_dict[col]["possible_values"]["value"])
-        except Exception:
-            pass
+        except Exception as e:
+            _log.debug("primarysource_formatter: skipping enum map for column '%s': %s", col, e)
     return df
 
 
-# ### report serious formatting/mapping function
-
-# In[16]:
-
-
 def report_serious_formatter(df):
+    """Apply OpenFDA enum mapping to the 'serous' (seriousness) column."""
     col = "serous"
     try:
         value_dict = attribute_map["properties"][col]["possible_values"]["value"]
         df[col] = _apply_enum_map(df[col], value_dict)
-    except Exception:
-        pass
+    except Exception as e:
+        _log.debug("report_serious_formatter: skipping 'serous' enum map: %s", e)
     return df
 
 
-# ### patient data formatting/mapping function
-
-# In[17]:
-
-
 def patient_formatter(df):
+    """Apply OpenFDA enum mappings to patient.* columns and compute master_age in years.
+
+    Converts age from various units (Month, Week, Day, Hour, Decade) to whole years
+    using floor division, then joins the computed ``master_age`` column back to the DataFrame.
+    """
     attributes_dict = attribute_map["properties"]["patient"]["properties"]
     cols = np.intersect1d(
         list(attributes_dict.keys()), [x.replace("patient.", "") for x in df.columns]
@@ -204,8 +206,8 @@ def patient_formatter(df):
             if attributes_dict[col]["possible_values"]["type"] == "one_of":
                 full_col = "patient." + col
                 df[full_col] = _apply_enum_map(df[full_col], attributes_dict[col]["possible_values"]["value"])
-        except Exception:
-            pass
+        except Exception as e:
+            _log.debug("patient_formatter: skipping enum map for column '%s': %s", col, e)
         if "date" in col:
             df[col] = pd.to_datetime(df[col], infer_datetime_format=True)
 
@@ -236,19 +238,19 @@ def patient_formatter(df):
         year_reports, "patient.patientonsetage"
     ].astype(int)
     aged.loc[month_reports, "master_age"] = np.floor(
-        aged.loc[month_reports, "patient.patientonsetage"].astype(int) / 12.0
+        aged.loc[month_reports, "patient.patientonsetage"].astype(int) / AGE_MONTHS_PER_YEAR
     )
     aged.loc[week_reports, "master_age"] = np.floor(
-        aged.loc[week_reports, "patient.patientonsetage"].astype(int) / 52.0
+        aged.loc[week_reports, "patient.patientonsetage"].astype(int) / AGE_WEEKS_PER_YEAR
     )
     aged.loc[day_reports, "master_age"] = np.floor(
-        aged.loc[day_reports, "patient.patientonsetage"].astype(int) / 365.0
+        aged.loc[day_reports, "patient.patientonsetage"].astype(int) / AGE_DAYS_PER_YEAR
     )
     aged.loc[decade_reports, "master_age"] = (
         aged.loc[decade_reports, "patient.patientonsetage"].astype(int) * 10
     )
     aged.loc[hour_reports, "master_age"] = np.floor(
-        aged.loc[hour_reports, "patient.patientonsetage"].astype(int) / 8760.0
+        aged.loc[hour_reports, "patient.patientonsetage"].astype(int) / AGE_HOURS_PER_YEAR
     )
 
     return df.join(aged[["master_age"]])
@@ -285,11 +287,6 @@ def _flatten_activesubstance(val) -> "str | None":
     return None
 
 
-# #### patient.drug formatting/mapping function
-
-# In[18]:
-
-
 def patient_drug_formatter(df):
     attributes_dict = attribute_map["properties"]["patient"]["properties"]["drug"][
         "items"
@@ -303,14 +300,9 @@ def patient_drug_formatter(df):
                     df[col] = _apply_enum_map_padded(df[col], value_dict, width=3)
                 else:
                     df[col] = _apply_enum_map(df[col], value_dict)
-        except Exception:
-            pass
+        except Exception as e:
+            _log.debug("patient_drug_formatter: skipping enum map for column '%s': %s", col, e)
     return df
-
-
-# #### main parser formatting/mapping function
-
-# In[19]:
 
 
 def parse_patient_drug_data(results):
@@ -379,13 +371,6 @@ def parse_patient_drug_data(results):
     return patient_drug_formatter(df)
 
 
-# ### patient.drug.openfda formatting/mapping function
-
-# #### main parser formatting/mapping function
-
-# In[20]:
-
-
 def parse_patient_drug_openfda_data(results):
     # Same output schema: columns [key, value, safetyreportid, entry]
     # Avoids per-entry pd.concat by collecting plain dicts first.
@@ -412,14 +397,8 @@ def parse_patient_drug_openfda_data(results):
     return pd.DataFrame(records)
 
 
-# ### parse patient.reaction data formatting/mapping function
-
-# #### patient.reaction formatter function
-
-# In[21]:
-
-
 def patient_reactions_formatter(df):
+    """Apply OpenFDA enum mappings to patient.reaction columns (e.g. reactionoutcome)."""
     attributes_dict = attribute_map["properties"]["patient"]["properties"]["reaction"][
         "items"
     ]["properties"]
@@ -428,14 +407,9 @@ def patient_reactions_formatter(df):
         try:
             if attributes_dict[col]["possible_values"]["type"] == "one_of":
                 df[col] = _apply_enum_map(df[col], attributes_dict[col]["possible_values"]["value"])
-        except Exception:
-            pass
+        except Exception as e:
+            _log.debug("patient_reactions_formatter: skipping enum map for column '%s': %s", col, e)
     return df
-
-
-# #### main parser
-
-# In[22]:
 
 
 def parse_patient_reaction_data(results):
@@ -459,12 +433,13 @@ def parse_patient_reaction_data(results):
     return patient_reactions_formatter(pd.DataFrame(records)).reset_index(drop=True)
 
 
-# ### main parsing function
-
-# In[23]:
-
-
 def parsing_main(drug_event_file, file_index, total_files):
+    """Download, parse, and save a single FAERS partition file.
+
+    Handles: metadata, report, patient (with age), patient.drug,
+    patient.drug.openfda, and patient.reaction entities.
+    Skips files that were already processed (resume-safe).
+    """
     # Resolve output paths from the shared dict (populated by run() before workers start)
     out_meta = _out_paths["out_meta"]
     out_report = _out_paths["out_report"]

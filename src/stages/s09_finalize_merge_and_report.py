@@ -25,6 +25,7 @@ import polars as pl
 from loguru import logger
 
 from src.stages.s03_join_partition_age import END_YEAR, START_YEAR
+from src.utils.dates import parse_date_column
 from src.utils.dq import dq_summary_markdown
 from src.utils.io import (
     PipelineContext,
@@ -53,9 +54,9 @@ ADULT_COLUMNS = [
     "reporter_qualification",
     "medicinal_product",
     "rxcui",
-    "mapping_method",  # ✅ วิธีที่ใช้หา (rxnav_direct, local_synonym, cid_title_fallback)
+    "mapping_method",  # Method used to resolve rxcui (rxnav_direct, local_synonym, cid_title_fallback)
     "ingredient",      # List[str] — RxNorm ingredients for this rxcui (use rxcui to count drugs)
-    "faers_ingredients",   # List[str] จาก FAERS/S07b (structured)
+    "faers_ingredients",   # List[str] from FAERS/S07b structured parsing
     "ingredient_count",
     "faers_ingredient_count",
     "is_combination_product",
@@ -91,9 +92,9 @@ PEDIATRIC_COLUMNS = [
     "reporter_qualification",
     "medicinal_product",
     "rxcui",
-    "mapping_method",  # ✅ วิธีที่ใช้หา (rxnav_direct, local_synonym, cid_title_fallback)
+    "mapping_method",  # Method used to resolve rxcui (rxnav_direct, local_synonym, cid_title_fallback)
     "ingredient",      # List[str] — RxNorm ingredients for this rxcui (use rxcui to count drugs)
-    "faers_ingredients",   # List[str] จาก FAERS/S07b (structured)
+    "faers_ingredients",   # List[str] from FAERS/S07b structured parsing
     "ingredient_count",
     "faers_ingredient_count",
     "is_combination_product",
@@ -269,7 +270,7 @@ def _finalize_cohort_streaming(cohort: str, ctx: PipelineContext) -> Dict[str, i
     enriched_schema = pl.scan_parquet(str(enriched_path)).collect_schema()
     has_is_selected_case = "is_selected_case" in enriched_schema
 
-    # สร้างคอลัมน์ is_selected_case ตามเงื่อนไข
+    # Build is_selected_case column based on rxcui availability
     base_lf_stats = pl.scan_parquet(str(enriched_path))
     if not has_is_selected_case:
         base_lf_stats = base_lf_stats.with_columns(
@@ -311,10 +312,10 @@ def _finalize_cohort_streaming(cohort: str, ctx: PipelineContext) -> Dict[str, i
     has_mapping_method_stream = "mapping_method" in enriched_schema_lookup_stream
     has_source_stream = "source" in enriched_schema_lookup_stream
 
-    # สร้าง base lazyframe และคอลัมน์ที่จำเป็น
+    # Build base lazyframe with required columns
     base_lf_stream = pl.scan_parquet(str(enriched_path))
     
-    # สร้างคอลัมน์ is_selected_case
+    # Build is_selected_case column
     if not has_is_selected_case_stream:
         base_lf_stream = base_lf_stream.with_columns(
             pl.col("rxcui").is_not_null().cast(pl.Boolean).alias("is_selected_case")
@@ -324,7 +325,7 @@ def _finalize_cohort_streaming(cohort: str, ctx: PipelineContext) -> Dict[str, i
             pl.col("is_selected_case").fill_null(pl.col("rxcui").is_not_null()).cast(pl.Boolean).alias("is_selected_case")
         )
     
-    # สร้างคอลัมน์ mapping_method
+    # Build mapping_method column
     if has_mapping_method_stream:
         base_lf_stream = base_lf_stream.with_columns(pl.col("mapping_method").cast(pl.Utf8).alias("mapping_method"))
     elif has_source_stream:
@@ -397,14 +398,7 @@ def _finalize_cohort_streaming(cohort: str, ctx: PipelineContext) -> Dict[str, i
     )
 
     processed = joined.with_columns(
-        # ✅ ingredient มาจาก S08 โดยตรง (enriched_lookup_lf)
-        pl.coalesce(
-            [
-                pl.col("receive_date").cast(pl.Date, strict=False),
-                pl.col("receive_date").cast(pl.Utf8, strict=False).str.strptime(pl.Date, format="%Y%m%d", strict=False),
-                pl.col("receive_date").cast(pl.Utf8, strict=False).str.strptime(pl.Date, format="%Y-%m-%d", strict=False),
-            ]
-        ).alias("receive_date"),
+        parse_date_column("receive_date"),
     )
 
     # Apply quality filters
@@ -471,6 +465,9 @@ def _finalize_cohort_streaming(cohort: str, ctx: PipelineContext) -> Dict[str, i
         else pl.lit(0, dtype=pl.Int32)
     )
     processed = processed.with_columns(serious_numeric.alias("_serious_numeric"))
+    # Compute aggregate "serious" flag: 1 if ANY sub-flag (death, hospitalization,
+    # life-threatening, disabling, congenital anomaly, other) or the original
+    # serious field indicates a serious outcome.
     processed = processed.with_columns(
         pl.max_horizontal(
             [pl.col(c) for c in available_flags] + [pl.col("_serious_numeric")]
@@ -478,30 +475,10 @@ def _finalize_cohort_streaming(cohort: str, ctx: PipelineContext) -> Dict[str, i
     ).drop("_serious_numeric")
 
     if "mostrecent_receive_date" in names_after_join:
-        processed = (
-            processed.with_columns(
-                pl.coalesce(
-                    [
-                        pl.col("mostrecent_receive_date").cast(pl.Date, strict=False),
-                        pl.col("mostrecent_receive_date").cast(pl.Utf8, strict=False).str.strptime(pl.Date, format="%Y%m%d", strict=False),
-                        pl.col("mostrecent_receive_date").cast(pl.Utf8, strict=False).str.strptime(pl.Date, format="%Y-%m-%d", strict=False),
-                    ]
-                ).alias("mostrecent_receive_date")
-            )
-        )
+        processed = processed.with_columns(parse_date_column("mostrecent_receive_date"))
 
     if "lastupdate_date" in names_after_join:
-        processed = (
-            processed.with_columns(
-                pl.coalesce(
-                    [
-                        pl.col("lastupdate_date").cast(pl.Date, strict=False),
-                        pl.col("lastupdate_date").cast(pl.Utf8, strict=False).str.strptime(pl.Date, format="%Y%m%d", strict=False),
-                        pl.col("lastupdate_date").cast(pl.Utf8, strict=False).str.strptime(pl.Date, format="%Y-%m-%d", strict=False),
-                    ]
-                ).alias("lastupdate_date")
-            )
-        )
+        processed = processed.with_columns(parse_date_column("lastupdate_date"))
 
     if "patient_weight" in names_after_join:
         processed = processed.drop("patient_weight")
@@ -830,7 +807,7 @@ def _finalize_cohort_polars_batched(cohort: str, ctx: PipelineContext) -> Dict[s
     clean_rows = (
         pl.scan_parquet(str(clean_path)).select(pl.len()).collect(streaming=True).item()
     )
-    # ตรวจสอบ schema ก่อนเพื่อดูว่ามีคอลัมน์อะไรบ้าง
+    # Inspect schema to check available columns
     enriched_schema = pl.scan_parquet(str(enriched_path)).collect_schema()
     has_is_selected_case = "is_selected_case" in enriched_schema
 
@@ -877,10 +854,10 @@ def _finalize_cohort_polars_batched(cohort: str, ctx: PipelineContext) -> Dict[s
     has_source_lookup = "source" in enriched_schema_lookup
     has_lookup_hit = "lookup_hit" in enriched_schema_lookup
 
-    # สร้างคอลัมน์ is_selected_case และ mapping_method ตามเงื่อนไข
+    # Build is_selected_case and mapping_method columns based on schema availability
     base_lf = pl.scan_parquet(str(enriched_path))
 
-    # สร้างคอลัมน์ is_selected_case
+    # Build is_selected_case column
     if not has_is_selected_case_lookup:
         base_lf = base_lf.with_columns(
             pl.col("rxcui").is_not_null().cast(pl.Boolean).alias("is_selected_case")
@@ -890,7 +867,7 @@ def _finalize_cohort_polars_batched(cohort: str, ctx: PipelineContext) -> Dict[s
             pl.col("is_selected_case").fill_null(pl.col("rxcui").is_not_null()).cast(pl.Boolean).alias("is_selected_case")
         )
 
-    # สร้างคอลัมน์ mapping_method (ใช้ lookup_hit จาก S08 ถ้ามี)
+    # Build mapping_method column (prefer lookup_hit from S08 if available)
     if has_mapping_method_lookup:
         base_lf = base_lf.with_columns(pl.col("mapping_method").cast(pl.Utf8).alias("mapping_method"))
     elif has_lookup_hit:
@@ -1003,12 +980,7 @@ def _finalize_cohort_polars_batched(cohort: str, ctx: PipelineContext) -> Dict[s
         )
 
         processed = joined.with_columns(
-            # ✅ ingredient มาจาก S08 โดยตรง (enriched_lookup_lf)
-            pl.coalesce([
-                pl.col("receive_date").cast(pl.Date, strict=False),
-                pl.col("receive_date").cast(pl.Utf8, strict=False).str.strptime(pl.Date, format="%Y%m%d", strict=False),
-                pl.col("receive_date").cast(pl.Utf8, strict=False).str.strptime(pl.Date, format="%Y-%m-%d", strict=False),
-            ]).alias("receive_date"),
+            parse_date_column("receive_date"),
         )
 
         # Apply quality filters (Note: drug_characterization and reporter filters moved to S03)
@@ -1059,26 +1031,12 @@ def _finalize_cohort_polars_batched(cohort: str, ctx: PipelineContext) -> Dict[s
         ).drop("_serious_numeric")
 
         if "mostrecent_receive_date" in names_after_join:
-            processed = (
-                processed.with_columns(
-                    pl.coalesce([
-                        pl.col("mostrecent_receive_date").cast(pl.Date, strict=False),
-                        pl.col("mostrecent_receive_date").cast(pl.Utf8, strict=False).str.strptime(pl.Date, format="%Y%m%d", strict=False),
-                        pl.col("mostrecent_receive_date").cast(pl.Utf8, strict=False).str.strptime(pl.Date, format="%Y-%m-%d", strict=False),
-                    ]).alias("mostrecent_receive_date")
-                ).drop_nulls(["mostrecent_receive_date"])
-            )
+            processed = processed.with_columns(
+                parse_date_column("mostrecent_receive_date")
+            ).drop_nulls(["mostrecent_receive_date"])
 
         if "lastupdate_date" in names_after_join:
-            processed = (
-                processed.with_columns(
-                    pl.coalesce([
-                        pl.col("lastupdate_date").cast(pl.Date, strict=False),
-                        pl.col("lastupdate_date").cast(pl.Utf8, strict=False).str.strptime(pl.Date, format="%Y%m%d", strict=False),
-                        pl.col("lastupdate_date").cast(pl.Utf8, strict=False).str.strptime(pl.Date, format="%Y-%m-%d", strict=False),
-                    ]).alias("lastupdate_date")
-                )
-            )
+            processed = processed.with_columns(parse_date_column("lastupdate_date"))
 
         if "patient_weight" in names_after_join:
             processed = processed.drop("patient_weight")

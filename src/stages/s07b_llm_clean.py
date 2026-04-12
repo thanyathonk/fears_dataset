@@ -177,6 +177,19 @@ _OUTPUT_COLS = [
 
 
 def regex_preprocess(text: str) -> Dict[str, Any]:
+    """Rule-based pre-processing of a FAERS drug name before LLM decomposition.
+
+    Pipeline:
+      1. Uppercase and strip trailing dots
+      2. Extract parenthesized text (e.g. brand names, qualifiers)
+      3. Remove parenthesized content from main string
+      4. Strip strength patterns (e.g. "500 MG", "10/325")
+      5. Remove known salt forms, routes, dosage forms, and company names
+      6. Remove remaining numeric tokens
+
+    Returns:
+        dict with keys: 'raw' (original), 'clean' (processed name), 'brackets' (extracted parenthetical text)
+    """
     raw = text
 
     s = text.upper().strip().rstrip(".")

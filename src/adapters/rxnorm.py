@@ -29,20 +29,21 @@ class RxNormClient:
         self.client = CachedAsyncHTTPClient(cache, timeout=60)
         self.base_url = ctx.config.rxnorm.base_url.rstrip("/")
 
+    async def _get_json(self, url: str, params: Optional[Dict] = None) -> dict:
+        """Unified HTTP GET that uses the external session if available, otherwise the cached client."""
+        if self.session:
+            async with self.session.get(url, params=params) as resp:
+                resp.raise_for_status()
+                return await resp.json()
+        return await self.client.request_json("GET", url, params=params)
+
     async def lookup_exact(self, name: str) -> List[str]:
         """Exact match lookup - returns list of RxCUI."""
-        url = f"{self.base_url}/rxcui.json"  # Fixed: base_url already includes /REST
-        full_url = f"{url}?name={name}"  # Construct full URL for logging
+        url = f"{self.base_url}/rxcui.json"
+        full_url = f"{url}?name={name}"
 
         try:
-            if self.session:
-                # Use external session (direct or proxy)
-                async with self.session.get(url, params={"name": name}) as resp:
-                    resp.raise_for_status()
-                    payload = await resp.json()
-            else:
-                # Use cached client (fallback)
-                payload = await self.client.request_json("GET", url, params={"name": name})
+            payload = await self._get_json(url, params={"name": name})
 
             ids = payload.get("idGroup", {}).get("rxnormId", [])
             if isinstance(ids, str):
@@ -104,13 +105,7 @@ class RxNormClient:
         url = f"{self.base_url}/rxcui/{rxcui}/properties.json"
 
         try:
-            if self.session:
-                async with self.session.get(url) as resp:
-                    resp.raise_for_status()
-                    payload = await resp.json()
-            else:
-                payload = await self.client.request_json("GET", url)
-
+            payload = await self._get_json(url)
             properties = payload.get("properties", {})
             return properties.get("tty", "UNKNOWN")
         except Exception as e:
@@ -139,15 +134,8 @@ class RxNormClient:
         Returns list of IngredientInfo with rxcui, name, and tty (IN, MIN).
         Filters for IN (Ingredient) and MIN (Multiple Ingredient) TTYs.
         """
-        url = f"{self.base_url}/rxcui/{rxcui}/allrelated.json"  # Fixed: base_url already includes /REST
-        if self.session:
-            # Use external session (direct or proxy)
-            async with self.session.get(url) as resp:
-                resp.raise_for_status()
-                payload = await resp.json()
-        else:
-            # Use cached client (fallback)
-            payload = await self.client.request_json("GET", url)
+        url = f"{self.base_url}/rxcui/{rxcui}/allrelated.json"
+        payload = await self._get_json(url)
 
         ingredients: List[IngredientInfo] = []
         concept_groups = payload.get("allRelatedGroup", {}).get("conceptGroup", [])

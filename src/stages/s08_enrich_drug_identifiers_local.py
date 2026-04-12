@@ -147,10 +147,14 @@ def _split_main_and_quarantine(
 # NCBI / PubChem (optional; higher rate limits when set — get from https://www.ncbi.nlm.nih.gov/account/settings/)
 NCBI_API_KEY = os.environ.get("NCBI_API_KEY", "").strip()
 
-# Rate limiting
-RATE_LIMIT_SEMAPHORE = asyncio.Semaphore(5)   # RxNav
-CHEMBL_SEMAPHORE = asyncio.Semaphore(5)        # ChEMBL EBI
-KEGG_SEMAPHORE = asyncio.Semaphore(3)          # KEGG REST (be gentle)
+# Rate limiting — max concurrent requests per external API
+RXNAV_CONCURRENCY = 5       # RxNav REST API
+CHEMBL_CONCURRENCY = 5      # ChEMBL EBI API
+KEGG_CONCURRENCY = 3        # KEGG REST API (lower limit — be gentle)
+
+RATE_LIMIT_SEMAPHORE = asyncio.Semaphore(RXNAV_CONCURRENCY)
+CHEMBL_SEMAPHORE = asyncio.Semaphore(CHEMBL_CONCURRENCY)
+KEGG_SEMAPHORE = asyncio.Semaphore(KEGG_CONCURRENCY)
 
 # Local CID file paths (relative to project root)
 _DATA_DIR = Path(__file__).parents[2] / "data"

@@ -22,16 +22,13 @@ from loguru import logger
 
 from src.utils.dq import dq_summary_markdown
 from src.utils.io import PipelineContext, stage_output_path, write_manifest
-
-
-VOCAB_DIRNAME = "vocabulary_SNOMED_MEDDRA_RxNorm_ATC"
-
-# SOC categories unrelated to direct drug effects – same 3 as S06
-EXCLUDED_SOCS = [
-    "Surgical and medical procedures",
-    "Social circumstances",
-    "Product issues",
-]
+from src.utils.meddra import (
+    EXCLUDED_SOCS,
+    VOCAB_DIRNAME,
+    concept_subset as _concept_subset,
+    load_concepts as _load_concepts,
+    vocab_dir as _vocab_dir_shared,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -55,61 +52,7 @@ class MedDRAResources:
 # ---------------------------------------------------------------------------
 
 def _vocab_dir(ctx: PipelineContext) -> Path:
-    candidate = ctx.config.paths.vocab_root / VOCAB_DIRNAME
-    if candidate.exists():
-        return candidate
-    legacy = ctx.config.paths.root / "vocab" / VOCAB_DIRNAME
-    if legacy.exists():
-        logger.warning(
-            "[S06b] Found vocabulary in legacy location %s; please migrate to %s",
-            legacy,
-            candidate,
-        )
-        return legacy
-    raise FileNotFoundError(
-        "MedDRA vocabulary directory not found. Expected at "
-        f"{candidate}. Please ensure vocab files are available."
-    )
-
-
-def _load_concepts(concept_path: Path) -> pl.DataFrame:
-    """Load MedDRA concepts with Title Case normalisation."""
-    return (
-        pl.read_csv(
-            concept_path,
-            separator="\t",
-            infer_schema_length=0,
-            quote_char=None,
-            null_values="",
-        )
-        .filter(pl.col("vocabulary_id") == "MedDRA")
-        .select(
-            pl.col("concept_id").cast(pl.Int64),
-            pl.col("concept_code").cast(pl.Utf8, strict=False),
-            pl.col("concept_name").cast(pl.Utf8, strict=False),
-            pl.col("concept_class_id").cast(pl.Utf8, strict=False),
-        )
-        .with_columns(
-            pl.col("concept_name")
-            .fill_null("")
-            .str.to_titlecase()
-            .alias("concept_name_title")
-        )
-    )
-
-
-def _concept_subset(df: pl.DataFrame, cls: str, prefix: str) -> pl.DataFrame:
-    """Extract concept subset by class and rename columns with prefix."""
-    return (
-        df.filter(pl.col("concept_class_id") == cls)
-        .select(
-            pl.col("concept_id").alias(f"{prefix}_id"),
-            pl.col("concept_code").alias(f"{prefix}_code"),
-            pl.col("concept_name").alias(f"{prefix}_name"),
-            pl.col("concept_name_title").alias(f"{prefix}_name_match"),
-            pl.col("concept_class_id").alias(f"{prefix}_class"),
-        )
-    )
+    return _vocab_dir_shared(ctx, stage_tag="S06b")
 
 
 def _load_concept_relationship(
