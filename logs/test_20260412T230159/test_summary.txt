@@ -1,0 +1,15 @@
+Test Run: test_20260412T230159
+Date: 2026-04-12T16:02:08Z
+Config: configs/config.test.yaml
+
+PASS  s03_join_partition_age
+PASS  s05_split_adr
+PASS  s06_map_omop_meddra
+PASS  s06b_map_omop_meddra_full_hierarchy
+PASS  s07_split_drug
+FAIL  s08_enrich_drug_identifiers
+FAIL  s09_finalize_merge_and_report
+FAIL  s10_package_deliverables
+
+Passed: 5 / 8
+Failed: 3

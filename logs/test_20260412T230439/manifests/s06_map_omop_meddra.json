@@ -1,0 +1,21 @@
+{
+  "stage": "s06_map_omop_meddra",
+  "cohorts": {
+    "pediatric": {
+      "input_rows": 85,
+      "mapped_rows": 83,
+      "coverage_pct": 97.6470588235294,
+      "unique_pts": 71,
+      "unique_socs": 22,
+      "dictionary_path": "/ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/s06_map_omop_meddra/pediatric/pt_soc_dictionary_full_data.parquet"
+    },
+    "adult": {
+      "input_rows": 720,
+      "mapped_rows": 712,
+      "coverage_pct": 98.88888888888889,
+      "unique_pts": 394,
+      "unique_socs": 23,
+      "dictionary_path": "/ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/s06_map_omop_meddra/adult/pt_soc_dictionary_full_data.parquet"
+    }
+  }
+}

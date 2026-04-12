@@ -5,13 +5,10 @@ Compares output parquets between two pipeline runs (baseline vs refactored)
 to ensure the refactoring didn't change the data output.
 
 Usage:
-    # Compare test output against a baseline run:
+    # Self-check (staging_root + output_root for S09):
     python scripts/validate_test_results.py \
-        --baseline data/test_baseline/ \
-        --current  data/test_output/
-
-    # Self-check mode (just validate current output is sane):
-    python scripts/validate_test_results.py --current data/test_output/
+        --current data/test_sample/ \
+        --output-root data/test_output/
 
 Output:
     Prints a validation report to stdout and writes to logs/validation_report.md
@@ -28,7 +25,13 @@ from pathlib import Path
 import polars as pl
 
 
-# Expected output files per cohort (stage → filename pattern)
+S09_FINAL_NAME = "patient_report_reporter_drug_reaction_full_data.parquet"
+
+S08_CANDIDATE_NAMES = (
+    "{cohort}_drugs_enriched_final_full_data.parquet",
+    "{cohort}_drugs_enriched.parquet",
+)
+
 EXPECTED_OUTPUTS = {
     "s03_join_partition_age": [
         "{cohort}_events_full_data.parquet",
@@ -43,11 +46,9 @@ EXPECTED_OUTPUTS = {
         "{cohort}_drugs_full_data.parquet",
     ],
     "s08_enrich_drug_identifiers": [
-        "{cohort}_drugs_enriched_final_full_data.parquet",
+        "{cohort}_drugs_enriched.parquet",
     ],
-    "s09_finalize_merge_and_report": [
-        "{cohort}_patient_report_reporter_drug_reaction_full_data.parquet",
-    ],
+    "s09_finalize_merge_and_report": [],
 }
 
 COHORTS = ["adult", "pediatric"]
@@ -94,11 +95,38 @@ class ValidationResult:
         return "\n".join(lines)
 
 
-def check_file_exists(result: ValidationResult, staging_dir: Path) -> None:
-    """Check that expected output files exist."""
+def _s08_parquet(stage_dir: Path, cohort: str) -> Path | None:
+    for tmpl in S08_CANDIDATE_NAMES:
+        p = stage_dir / tmpl.format(cohort=cohort)
+        if p.exists():
+            return p
+    return None
+
+
+def _s09_parquet(output_root: Path, cohort: str) -> Path:
+    return output_root / cohort.capitalize() / S09_FINAL_NAME
+
+
+def check_file_exists(result: ValidationResult, staging_dir: Path, output_root: Path) -> None:
+    """Check that expected output files exist (staging; S09 under output_root)."""
     for stage, patterns in EXPECTED_OUTPUTS.items():
         stage_dir = staging_dir / stage
         for cohort in COHORTS:
+            if stage == "s08_enrich_drug_identifiers":
+                fpath = _s08_parquet(stage_dir, cohort)
+                if fpath is not None:
+                    row_count = pl.scan_parquet(str(fpath)).select(pl.len()).collect().item()
+                    result.add(
+                        stage,
+                        f"{cohort}/{fpath.name} exists",
+                        "PASS",
+                        f"{row_count:,} rows",
+                    )
+                else:
+                    tried = ", ".join(t.format(cohort=cohort) for t in S08_CANDIDATE_NAMES)
+                    result.add(stage, f"{cohort}/s08 enriched output exists", "FAIL", f"not found (tried: {tried})")
+                continue
+
             for pattern in patterns:
                 fname = pattern.format(cohort=cohort)
                 fpath = stage_dir / fname
@@ -108,6 +136,25 @@ def check_file_exists(result: ValidationResult, staging_dir: Path) -> None:
                 else:
                     result.add(stage, f"{cohort}/{fname} exists", "FAIL", "File not found")
 
+    for cohort in COHORTS:
+        fpath = _s09_parquet(output_root, cohort)
+        stage = "s09_finalize_merge_and_report"
+        if fpath.exists():
+            row_count = pl.scan_parquet(str(fpath)).select(pl.len()).collect().item()
+            result.add(
+                stage,
+                f"{cohort}/{S09_FINAL_NAME} exists",
+                "PASS",
+                f"{row_count:,} rows",
+            )
+        else:
+            result.add(
+                stage,
+                f"{cohort}/{S09_FINAL_NAME} exists",
+                "FAIL",
+                f"File not found ({fpath})",
+            )
+
 
 def check_schema_match(result: ValidationResult, staging_dir: Path) -> None:
     """Check that critical columns exist and have correct types."""
@@ -116,9 +163,12 @@ def check_schema_match(result: ValidationResult, staging_dir: Path) -> None:
         for cohort in COHORTS:
             patterns = EXPECTED_OUTPUTS.get(stage, [])
             for pattern in patterns:
-                fname = pattern.format(cohort=cohort)
-                fpath = stage_dir / fname
-                if not fpath.exists():
+                if stage == "s08_enrich_drug_identifiers":
+                    fpath = _s08_parquet(stage_dir, cohort)
+                else:
+                    fname = pattern.format(cohort=cohort)
+                    fpath = stage_dir / fname
+                if fpath is None or not fpath.exists():
                     continue
 
                 schema = pl.scan_parquet(str(fpath)).collect_schema()
@@ -136,9 +186,12 @@ def check_no_empty_critical(result: ValidationResult, staging_dir: Path) -> None
         for cohort in COHORTS:
             patterns = EXPECTED_OUTPUTS.get(stage, [])
             for pattern in patterns:
-                fname = pattern.format(cohort=cohort)
-                fpath = stage_dir / fname
-                if not fpath.exists():
+                if stage == "s08_enrich_drug_identifiers":
+                    fpath = _s08_parquet(stage_dir, cohort)
+                else:
+                    fname = pattern.format(cohort=cohort)
+                    fpath = stage_dir / fname
+                if fpath is None or not fpath.exists():
                     continue
 
                 df = pl.scan_parquet(str(fpath))
@@ -161,15 +214,28 @@ def check_no_empty_critical(result: ValidationResult, staging_dir: Path) -> None
                         result.add(stage, f"{cohort}: '{col}' not all-null", "PASS", f"{null_pct:.1f}% null")
 
 
-def check_row_count_match(result: ValidationResult, baseline_dir: Path, current_dir: Path) -> None:
+def check_row_count_match(
+    result: ValidationResult,
+    baseline_dir: Path,
+    current_dir: Path,
+    *,
+    baseline_output_root: Path | None,
+    current_output_root: Path | None,
+) -> None:
     """Compare row counts between baseline and current output."""
     for stage, patterns in EXPECTED_OUTPUTS.items():
         for cohort in COHORTS:
             for pattern in patterns:
-                fname = pattern.format(cohort=cohort)
-                base_path = baseline_dir / stage / fname
-                curr_path = current_dir / stage / fname
+                if stage == "s08_enrich_drug_identifiers":
+                    base_path = _s08_parquet(baseline_dir / stage, cohort)
+                    curr_path = _s08_parquet(current_dir / stage, cohort)
+                else:
+                    fname = pattern.format(cohort=cohort)
+                    base_path = baseline_dir / stage / fname
+                    curr_path = current_dir / stage / fname
 
+                if base_path is None or curr_path is None:
+                    continue
                 if not base_path.exists() or not curr_path.exists():
                     continue
 
@@ -186,6 +252,27 @@ def check_row_count_match(result: ValidationResult, baseline_dir: Path, current_
                         "FAIL",
                         f"baseline={base_rows:,}, current={curr_rows:,} (diff={diff:+,})",
                     )
+
+    if baseline_output_root is None or current_output_root is None:
+        return
+    stage = "s09_finalize_merge_and_report"
+    for cohort in COHORTS:
+        base_path = _s09_parquet(baseline_output_root, cohort)
+        curr_path = _s09_parquet(current_output_root, cohort)
+        if not base_path.exists() or not curr_path.exists():
+            continue
+        base_rows = pl.scan_parquet(str(base_path)).select(pl.len()).collect().item()
+        curr_rows = pl.scan_parquet(str(curr_path)).select(pl.len()).collect().item()
+        if base_rows == curr_rows:
+            result.add(stage, f"{cohort}: row count match", "PASS", f"{curr_rows:,} rows")
+        else:
+            diff = curr_rows - base_rows
+            result.add(
+                stage,
+                f"{cohort}: row count match",
+                "FAIL",
+                f"baseline={base_rows:,}, current={curr_rows:,} (diff={diff:+,})",
+            )
 
 
 def check_manifests(result: ValidationResult, log_dir: Path) -> None:
@@ -207,8 +294,25 @@ def check_manifests(result: ValidationResult, log_dir: Path) -> None:
 
 def main():
     parser = argparse.ArgumentParser(description="Validate pipeline test results")
-    parser.add_argument("--current", type=Path, required=True, help="Current staging output directory")
-    parser.add_argument("--baseline", type=Path, default=None, help="Baseline staging output for comparison")
+    parser.add_argument(
+        "--current",
+        type=Path,
+        required=True,
+        help="Staging root (paths.staging_root), e.g. data/test_sample",
+    )
+    parser.add_argument(
+        "--output-root",
+        type=Path,
+        default=Path("data/test_output"),
+        help="Final outputs (paths.output_root); S09 merged parquets under Adult/ Pediatric/",
+    )
+    parser.add_argument("--baseline", type=Path, default=None, help="Baseline staging root for row-count compare")
+    parser.add_argument(
+        "--baseline-output-root",
+        type=Path,
+        default=None,
+        help="Baseline output_root (for S09 row-count compare vs current)",
+    )
     parser.add_argument("--log-dir", type=Path, default=None, help="Log directory to check manifests")
     parser.add_argument("--output", type=Path, default=Path("logs/validation_report.md"), help="Report output path")
     args = parser.parse_args()
@@ -218,14 +322,16 @@ def main():
     print("=" * 60)
     print("PIPELINE VALIDATION")
     print("=" * 60)
-    print(f"Current output: {args.current}")
+    print(f"Staging root:   {args.current}")
+    print(f"Output root:    {args.output_root}")
     if args.baseline:
-        print(f"Baseline:       {args.baseline}")
+        print(f"Baseline stage: {args.baseline}")
+        if args.baseline_output_root:
+            print(f"Baseline out:   {args.baseline_output_root}")
     print()
 
-    # Run checks
     print("Checking file existence...")
-    check_file_exists(result, args.current)
+    check_file_exists(result, args.current, args.output_root)
 
     print("Checking schema...")
     check_schema_match(result, args.current)
@@ -235,7 +341,13 @@ def main():
 
     if args.baseline:
         print("Comparing row counts with baseline...")
-        check_row_count_match(result, args.baseline, args.current)
+        check_row_count_match(
+            result,
+            args.baseline,
+            args.current,
+            baseline_output_root=args.baseline_output_root,
+            current_output_root=args.output_root,
+        )
 
     if args.log_dir:
         print("Checking manifests...")

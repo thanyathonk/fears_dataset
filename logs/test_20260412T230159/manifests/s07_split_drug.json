@@ -1,0 +1,33 @@
+{
+  "stage": "s07_split_drug",
+  "cohorts": {
+    "pediatric": {
+      "input_event_rows": 487,
+      "unique_drugs": 54,
+      "output_path": "/ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/s07_split_drug/pediatric_drugs_full_data.parquet",
+      "columns": [
+        "medicinal_product",
+        "active_substance_faers",
+        "drug_dosage_form",
+        "drug_authorization_number",
+        "action_drug",
+        "drug_entries",
+        "medicinal_product_norm"
+      ]
+    },
+    "adult": {
+      "input_event_rows": 4644,
+      "unique_drugs": 293,
+      "output_path": "/ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/s07_split_drug/adult_drugs_full_data.parquet",
+      "columns": [
+        "medicinal_product",
+        "active_substance_faers",
+        "drug_dosage_form",
+        "drug_authorization_number",
+        "action_drug",
+        "drug_entries",
+        "medicinal_product_norm"
+      ]
+    }
+  }
+}

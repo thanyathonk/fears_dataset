@@ -9,7 +9,9 @@
 paths:
   root: .
   data_root: data/test_sample
-  staging_root: data/test_sample/staging
+  # Must match create_test_sample.py output: data/test_sample/s02_entity_format/
+  # (not data/test_sample/staging/s02_entity_format)
+  staging_root: data/test_sample
   output_root: data/test_output
   logs_root: logs
   vocab_root: data/test_sample/vocab

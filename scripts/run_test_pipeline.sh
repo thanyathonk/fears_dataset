@@ -10,26 +10,38 @@
 #   bash scripts/run_test_pipeline.sh s03 s05      # Run specific stages only
 #
 # Output:
-#   data/test_sample/staging/   — intermediate outputs
+#   data/test_sample/           — S02 sample + S03+ staging (see config.test.yaml)
 #   data/test_output/           — final outputs
 #   logs/test_*/                — logs + manifests
+#SBATCH --job-name=test_pipeline
+#SBATCH --partition=gpu-cluster
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=16
+#SBATCH --gres=gpu:1
+#SBATCH --mem=250G
+#SBATCH --time=1-00:00:00
+#SBATCH --output=logs/slurm-test_pipeline-%j.out
+#SBATCH --error=logs/slurm-test_pipeline-%j.err
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-cd "${SCRIPT_DIR}/.."
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "${SLURM_SUBMIT_DIR:-$REPO_ROOT}"
 
-# ── Conda (optional — skip if already activated) ────────────────────────────
-if command -v conda &>/dev/null; then
-    CONDA_ENV=${CONDA_ENV:-fulldata}
-    conda activate "${CONDA_ENV}" 2>/dev/null || true
-fi
+source ~/miniforge3/bin/activate
+CONDA_ENV=${CONDA_ENV:-fulldata}
+conda activate "${CONDA_ENV}"
 
-# ── Config ──────────────────────────────────────────────────────────────────
-export PIPELINE_CONFIG="configs/config.test.yaml"
-RUN_ID="test_$(date +%Y%m%dT%H%M%S)"
+export PYTHONUNBUFFERED=1
+
+# Run identity and logging (required: script uses `set -u`)
+RUN_ID="${RUN_ID:-test_$(date +"%Y%m%dT%H%M%S")}"
 LOG_DIR="logs/${RUN_ID}"
 mkdir -p "${LOG_DIR}"
+
+# Python reads config via pydantic env PIPELINE_CONFIG_PATH (see src/settings.EnvSettings).
+# Also accept legacy PIPELINE_CONFIG as in configs/config.test.yaml comments.
+export PIPELINE_CONFIG_PATH="${PIPELINE_CONFIG_PATH:-${PIPELINE_CONFIG:-configs/config.test.yaml}}"
 
 # ── Verify sample data exists ───────────────────────────────────────────────
 SAMPLE_DIR="data/test_sample/s02_entity_format"
@@ -72,7 +84,7 @@ fi
 echo "============================================================"
 echo "TEST PIPELINE RUN"
 echo "============================================================"
-echo "Config:    ${PIPELINE_CONFIG}"
+echo "Config:    ${PIPELINE_CONFIG_PATH}"
 echo "Run ID:    ${RUN_ID}"
 echo "Log dir:   ${LOG_DIR}"
 echo "Stages:    ${STAGES[*]}"
@@ -111,10 +123,11 @@ RESULTS=()
 for stage in "${STAGES[@]}"; do
     if run_stage "${stage}"; then
         RESULTS+=("PASS  ${stage}")
-        ((PASSED++))
+        # Not ((PASSED++)): with set -e, post-increment from 0 exits status 1 and kills the script.
+        PASSED=$((PASSED + 1))
     else
         RESULTS+=("FAIL  ${stage}")
-        ((FAILED++))
+        FAILED=$((FAILED + 1))
         # Continue running remaining stages even if one fails
     fi
 done
@@ -139,7 +152,7 @@ SUMMARY_FILE="${LOG_DIR}/test_summary.txt"
 {
     echo "Test Run: ${RUN_ID}"
     echo "Date: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    echo "Config: ${PIPELINE_CONFIG}"
+    echo "Config: ${PIPELINE_CONFIG_PATH}"
     echo ""
     for result in "${RESULTS[@]}"; do
         echo "${result}"

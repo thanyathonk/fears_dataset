@@ -850,7 +850,8 @@ async def _enrich_names_direct(
 def run(ctx: PipelineContext) -> None:
     """Run Stage S08 Local: Drug identifier enrichment using Direct NCBI API."""
 
-    source_dir = stage_output_path(ctx, "s07b_llm_clean")
+    s07b_dir = stage_output_path(ctx, "s07b_llm_clean")
+    s07_dir = stage_output_path(ctx, "s07_split_drug")
     output_dir = stage_output_path(ctx, "s08_enrich_drug_identifiers")
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -873,18 +874,19 @@ def run(ctx: PipelineContext) -> None:
         logger.info("[Local] Processing all cohorts: pediatric, adult")
 
     for cohort in cohorts_to_process:
-        # Try all known naming conventions (most specific first)
+        # Prefer S07b LLM-cleaned outputs; fall back to S07 unique-drug tables when S07b was skipped.
         candidates = [
-            source_dir / f"{cohort}_drugs_llm_cleaned_full_data.parquet",
-            source_dir / f"{cohort}_drugs_clean_full_data.parquet",
-            source_dir / f"{cohort}_drugs_llm_cleaned.parquet",
-            source_dir / f"{cohort}_drugs_clean.parquet",
+            s07b_dir / f"{cohort}_drugs_llm_cleaned_full_data.parquet",
+            s07b_dir / f"{cohort}_drugs_clean_full_data.parquet",
+            s07b_dir / f"{cohort}_drugs_llm_cleaned.parquet",
+            s07b_dir / f"{cohort}_drugs_clean.parquet",
+            s07_dir / f"{cohort}_drugs_full_data.parquet",
         ]
         source = next((p for p in candidates if p.exists()), None)
 
         if source is None:
             raise FileNotFoundError(
-                f"Missing LLM-cleaned drug dataset for cohort '{cohort}'.\n"
+                f"Missing drug dataset for cohort '{cohort}' (need S07b LLM output or S07 split output).\n"
                 f"Searched:\n" + "\n".join(f"  - {p}" for p in candidates)
             )
 
@@ -900,14 +902,19 @@ def run(ctx: PipelineContext) -> None:
                 df = df.drop(col)
                 logger.debug(f"[Local] Dropped legacy column: {col}")
 
-        # Determine lookup column: prefer 'basename' (LLM-cleaned), fall back to 'medicinal_product_llm_clean'
+        # Lookup column: LLM outputs use basename / medicinal_product_llm_clean; S07-only uses norm or raw name.
         if "basename" in df.columns:
             lookup_col = "basename"
         elif "medicinal_product_llm_clean" in df.columns:
             lookup_col = "medicinal_product_llm_clean"
+        elif "medicinal_product_norm" in df.columns:
+            lookup_col = "medicinal_product_norm"
+        elif "medicinal_product" in df.columns:
+            lookup_col = "medicinal_product"
         else:
             raise ValueError(
-                f"[Local] Required column 'basename' or 'medicinal_product_llm_clean' not found in {source}. "
+                f"[Local] No drug name column found in {source}. "
+                f"Expected basename, medicinal_product_llm_clean, medicinal_product_norm, or medicinal_product. "
                 f"Found columns: {list(df.columns)}"
             )
         logger.info(f"[Local] Using '{lookup_col}' as drug name lookup key")
@@ -946,6 +953,10 @@ def run(ctx: PipelineContext) -> None:
         bn_to_ing: Dict[str, Optional[str]] = {}
         for row in df.iter_rows(named=True):
             bn = row.get("basename") or row.get("medicinal_product_llm_clean")
+            if not bn:
+                bn = row.get(lookup_col)
+            if isinstance(bn, list):
+                bn = bn[0] if bn else None
             if not bn:
                 continue
             bn_freq[bn] = bn_freq.get(bn, 0) + 1

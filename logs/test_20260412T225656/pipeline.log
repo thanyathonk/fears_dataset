@@ -1,0 +1,5 @@
+2026-04-12 22:56:57.261 | INFO     | src.stages.s03_join_partition_age:_build_cohort_drug_mapping_input:371 - [S03][pediatric] 27 unique reports in cohort
+2026-04-12 22:56:57.315 | INFO     | src.stages.s03_join_partition_age:_build_cohort_drug_mapping_input:405 - [S03][pediatric] drug_mapping_input rows=91 → /ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/s03_join_partition_age/pediatric_drug_mapping_input.parquet
+2026-04-12 22:56:57.318 | INFO     | src.stages.s03_join_partition_age:_build_cohort_drug_mapping_input:371 - [S03][adult] 227 unique reports in cohort
+2026-04-12 22:56:57.349 | INFO     | src.stages.s03_join_partition_age:_build_cohort_drug_mapping_input:405 - [S03][adult] drug_mapping_input rows=613 → /ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/s03_join_partition_age/adult_drug_mapping_input.parquet
+2026-04-12 22:56:57.369 | SUCCESS  | src.stages.s03_join_partition_age:run:563 - [S03] Cohorts generated — adult=4644, pediatric=487 | drug_mapping adult=613, pediatric=91

@@ -1,0 +1,38 @@
+{
+  "n_reports_sampled": 1000,
+  "seed": 42,
+  "tables": {
+    "patient": {
+      "rows": 1000,
+      "path": "data/test_sample/s02_entity_format/patient.parquet"
+    },
+    "report": {
+      "rows": 1000,
+      "path": "data/test_sample/s02_entity_format/report.parquet"
+    },
+    "report_serious": {
+      "rows": 1000,
+      "path": "data/test_sample/s02_entity_format/report_serious.parquet"
+    },
+    "reporter": {
+      "rows": 1000,
+      "path": "data/test_sample/s02_entity_format/reporter.parquet"
+    },
+    "drugcharacteristics_extended": {
+      "rows": 3854,
+      "path": "data/test_sample/s02_entity_format/drugcharacteristics_extended.parquet"
+    },
+    "reactions": {
+      "rows": 3027,
+      "path": "data/test_sample/s02_entity_format/reactions.parquet"
+    },
+    "drug_mapping_input": {
+      "rows": 3854,
+      "path": "data/test_sample/s02_entity_format/drug_mapping_input.parquet"
+    },
+    "drug_openfda_wide": {
+      "rows": 2781,
+      "path": "data/test_sample/s02_entity_format/drug_openfda_wide.parquet"
+    }
+  }
+}

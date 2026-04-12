@@ -1,0 +1,104 @@
+
+📋 Pipeline Configuration
+  Pipeline Type: main
+  Working Directory: /ist/ist-share/scads/thanyathonk/fears_dataset
+  Config Path: 
+/ist/ist-share/scads/thanyathonk/fears_dataset/configs/config.local.yaml
+  Root Directory: /ist/ist-share/scads/thanyathonk/fears_dataset
+  Output Directory: 
+/ist/ist-share/scads/thanyathonk/fears_dataset/data/test_output
+
+2026-04-12 23:08:39.775 | INFO     | src.stages.s09_finalize_merge_and_report:_log_box:242 - 
+[S09][pediatric] ┌─────────────────┐
+[S09][pediatric] │ Finalize cohort │
+[S09][pediatric] ├─────────────────┤
+[S09][pediatric] │ status: start   │
+[S09][pediatric] └─────────────────┘
+2026-04-12 23:08:39.796 | INFO     | src.stages.s09_finalize_merge_and_report:_log_box:242 - 
+[S09][pediatric] ┌───────────────────────┐
+[S09][pediatric] │ Prepare lazy pipeline │
+[S09][pediatric] ├───────────────────────┤
+[S09][pediatric] │ clean_rows: 487       │
+[S09][pediatric] │ candidate_drugs: 50   │
+[S09][pediatric] └───────────────────────┘
+2026-04-12 23:08:39.799 | INFO     | src.stages.s09_finalize_merge_and_report:_finalize_cohort_polars_batched:909 - [S09][pediatric] Loaded PT-SOC dictionary: 71 unique PT terms
+2026-04-12 23:08:39.799 | INFO     | src.stages.s09_finalize_merge_and_report:_finalize_cohort_polars_batched:913 - [S09][pediatric] Quality filters: receive_date in [2014,2025], Suspect drugs only, Excluded reporters: Unknown, Lawyer, Consumer or non-health professional
+S09 pediatric batches:   0%|          | 0/1 [00:00<?, ?it/s]                                                            2026-04-12 23:08:39.827 | INFO     | src.stages.s09_finalize_merge_and_report:_log_box:242 - 
+[S09][pediatric] ┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+[S09][pediatric] │ Write parquet                                                                                                                           │
+[S09][pediatric] ├─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+[S09][pediatric] │ action: start                                                                                                                           │
+[S09][pediatric] │ path: /ist/ist-share/scads/thanyathonk/fears_dataset/data/test_output/Pediatric/patient_report_reporter_drug_reaction_full_data.parquet │
+[S09][pediatric] └─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+2026-04-12 23:08:39.830 | INFO     | src.stages.s09_finalize_merge_and_report:_log_box:242 - 
+[S09][pediatric] ┌──────────────────┐
+[S09][pediatric] │ Write parquet    │
+[S09][pediatric] ├──────────────────┤
+[S09][pediatric] │ status: complete │
+[S09][pediatric] └──────────────────┘
+2026-04-12 23:08:39.833 | INFO     | src.stages.s09_finalize_merge_and_report:_log_box:242 - 
+[S09][pediatric] ┌───────────────┐
+[S09][pediatric] │ Collect stats │
+[S09][pediatric] └───────────────┘
+2026-04-12 23:08:39.839 | INFO     | src.stages.s09_finalize_merge_and_report:_log_box:242 - 
+[S09][pediatric] ┌──────────────────────────┐
+[S09][pediatric] │ Coverage metrics         │
+[S09][pediatric] ├──────────────────────────┤
+[S09][pediatric] │ rows: 30                 │
+[S09][pediatric] │ meddra_coverage: 100.00% │
+[S09][pediatric] │ rxnorm_coverage: 100.00% │
+[S09][pediatric] │ drug_unique_before: 50   │
+[S09][pediatric] │ drug_unique_mapped: 19   │
+[S09][pediatric] │ drug_unique_missing: 31  │
+[S09][pediatric] └──────────────────────────┘
+2026-04-12 23:08:39.839 | INFO     | src.stages.s09_finalize_merge_and_report:_log_box:242 - 
+[S09][adult] ┌─────────────────┐
+[S09][adult] │ Finalize cohort │
+[S09][adult] ├─────────────────┤
+[S09][adult] │ status: start   │
+[S09][adult] └─────────────────┘
+2026-04-12 23:08:39.842 | INFO     | src.stages.s09_finalize_merge_and_report:_log_box:242 - 
+[S09][adult] ┌───────────────────────┐
+[S09][adult] │ Prepare lazy pipeline │
+[S09][adult] ├───────────────────────┤
+[S09][adult] │ clean_rows: 4,644     │
+[S09][adult] │ candidate_drugs: 49   │
+[S09][adult] └───────────────────────┘
+2026-04-12 23:08:39.844 | INFO     | src.stages.s09_finalize_merge_and_report:_finalize_cohort_polars_batched:909 - [S09][adult] Loaded PT-SOC dictionary: 394 unique PT terms
+2026-04-12 23:08:39.845 | INFO     | src.stages.s09_finalize_merge_and_report:_finalize_cohort_polars_batched:913 - [S09][adult] Quality filters: receive_date in [2014,2025], Suspect drugs only, Excluded reporters: Unknown, Lawyer, Consumer or non-health professional
+S09 adult batches:   0%|          | 0/1 [00:00<?, ?it/s]                                                        2026-04-12 23:08:39.865 | INFO     | src.stages.s09_finalize_merge_and_report:_log_box:242 - 
+[S09][adult] ┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+[S09][adult] │ Write parquet                                                                                                                       │
+[S09][adult] ├─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+[S09][adult] │ action: start                                                                                                                       │
+[S09][adult] │ path: /ist/ist-share/scads/thanyathonk/fears_dataset/data/test_output/Adult/patient_report_reporter_drug_reaction_full_data.parquet │
+[S09][adult] └─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+2026-04-12 23:08:39.871 | INFO     | src.stages.s09_finalize_merge_and_report:_log_box:242 - 
+[S09][adult] ┌──────────────────┐
+[S09][adult] │ Write parquet    │
+[S09][adult] ├──────────────────┤
+[S09][adult] │ status: complete │
+[S09][adult] └──────────────────┘
+2026-04-12 23:08:39.871 | INFO     | src.stages.s09_finalize_merge_and_report:_log_box:242 - 
+[S09][adult] ┌───────────────┐
+[S09][adult] │ Collect stats │
+[S09][adult] └───────────────┘
+2026-04-12 23:08:39.876 | INFO     | src.stages.s09_finalize_merge_and_report:_log_box:242 - 
+[S09][adult] ┌──────────────────────────┐
+[S09][adult] │ Coverage metrics         │
+[S09][adult] ├──────────────────────────┤
+[S09][adult] │ rows: 88                 │
+[S09][adult] │ meddra_coverage: 100.00% │
+[S09][adult] │ rxnorm_coverage: 100.00% │
+[S09][adult] │ drug_unique_before: 49   │
+[S09][adult] │ drug_unique_mapped: 30   │
+[S09][adult] │ drug_unique_missing: 19  │
+[S09][adult] └──────────────────────────┘
+2026-04-12 23:08:39.877 | INFO     | src.stages.s09_finalize_merge_and_report:_log_box:242 - 
+[S09][summary] ┌──────────────────────────────────────────────────────────────────────────────┐
+[S09][summary] │ Stage complete                                                               │
+[S09][summary] ├──────────────────────────────────────────────────────────────────────────────┤
+[S09][summary] │ output_root: /ist/ist-share/scads/thanyathonk/fears_dataset/data/test_output │
+[S09][summary] └──────────────────────────────────────────────────────────────────────────────┘
+Completed stage s09_finalize_merge_and_report (0:00:00.102648)
+

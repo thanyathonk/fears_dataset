@@ -1,0 +1,35 @@
+{
+  "stage": "s03_join_partition_age",
+  "adult_rows": 4644,
+  "pediatric_rows": 487,
+  "adult_output": "/ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/s03_join_partition_age/adult_events_full_data.parquet",
+  "pediatric_output": "/ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/s03_join_partition_age/pediatric_events_full_data.parquet",
+  "adult_drug_mapping_input_rows": 613,
+  "pediatric_drug_mapping_input_rows": 91,
+  "adult_drug_mapping_input": "/ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/s03_join_partition_age/adult_drug_mapping_input.parquet",
+  "pediatric_drug_mapping_input": "/ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/s03_join_partition_age/pediatric_drug_mapping_input.parquet",
+  "validation": {
+    "adult_drug_mapping_input": {
+      "rows": 613,
+      "duplicate_safetyreportid_entry_pairs": 0,
+      "coverage_pct": {
+        "medicinal_product": 100.0,
+        "active_substance_name": 92.99,
+        "openfda_rxcui": 75.37,
+        "openfda_generic_name": 79.93,
+        "openfda_substance_name": 77.65
+      }
+    },
+    "pediatric_drug_mapping_input": {
+      "rows": 91,
+      "duplicate_safetyreportid_entry_pairs": 0,
+      "coverage_pct": {
+        "medicinal_product": 100.0,
+        "active_substance_name": 96.7,
+        "openfda_rxcui": 69.23,
+        "openfda_generic_name": 74.73,
+        "openfda_substance_name": 72.53
+      }
+    }
+  }
+}

@@ -1,0 +1,432 @@
+
+📋 Pipeline Configuration
+  Pipeline Type: main
+  Working Directory: /ist/ist-share/scads/thanyathonk/fears_dataset
+  Config Path: 
+/ist/ist-share/scads/thanyathonk/fears_dataset/configs/config.local.yaml
+  Root Directory: /ist/ist-share/scads/thanyathonk/fears_dataset
+  Output Directory: 
+/ist/ist-share/scads/thanyathonk/fears_dataset/data/test_output
+
+2026-04-12 23:02:06.797 | INFO     | src.stages.s08_enrich_drug_identifiers_local:run:873 - [Local] Processing all cohorts: pediatric, adult
+
+Stage s08_enrich_drug_identifiers failed.
+
+╭───────────────────── Traceback (most recent call last) ──────────────────────╮
+│ /ist/ist-share/scads/thanyathonk/fears_dataset/src/cli.py:157 in run_stage   │
+│                                                                              │
+│   154 │   │   console.print(f"[red]Unknown stage: {stage}[/red]")            │
+│   155 │   │   console.print(f"[yellow]Available stages: {', '.join(sorted(OR │
+│   156 │   │   raise typer.Exit(1)                                            │
+│ ❱ 157 │   _run_selected([stage], run_id, None)                               │
+│   158                                                                        │
+│   159                                                                        │
+│   160 @app.command()                                                         │
+│                                                                              │
+│ ╭──────────────── locals ────────────────╮                                   │
+│ │ run_id = 'test_20260412T230159'        │                                   │
+│ │  stage = 's08_enrich_drug_identifiers' │                                   │
+│ ╰────────────────────────────────────────╯                                   │
+│                                                                              │
+│ /ist/ist-share/scads/thanyathonk/fears_dataset/src/cli.py:129 in             │
+│ _run_selected                                                                │
+│                                                                              │
+│   126 │   │   │                                                              │
+│   127 │   │   │   start_time = perf_counter()                                │
+│   128 │   │   │   try:                                                       │
+│ ❱ 129 │   │   │   │   stage_callable(ctx)                                    │
+│   130 │   │   │   except Exception:                                          │
+│   131 │   │   │   │   progress.stop()                                        │
+│   132 │   │   │   │   console.print(f"[red]Stage {key} failed.[/red]")       │
+│                                                                              │
+│ ╭───────────────────────────────── locals ─────────────────────────────────╮ │
+│ │    active_stages = ['s08_enrich_drug_identifiers']                       │ │
+│ │        completed = 0                                                     │ │
+│ │           config = PipelineConfig(                                       │ │
+│ │                    │   paths=PathsConfig(                                │ │
+│ │                    │   │                                                 │ │
+│ │                    root=PosixPath('/ist/ist-share/scads/thanyathonk/fea… │ │
+│ │                    │   │                                                 │ │
+│ │                    data_root=PosixPath('/ist/ist-share/scads/thanyathon… │ │
+│ │                    │   │                                                 │ │
+│ │                    staging_root=PosixPath('/ist/ist-share/scads/thanyat… │ │
+│ │                    │   │                                                 │ │
+│ │                    raw_root=PosixPath('/ist/ist-share/scads/thanyathonk… │ │
+│ │                    │   │                                                 │ │
+│ │                    reference_root=PosixPath('/ist/ist-share/scads/thany… │ │
+│ │                    │   │                                                 │ │
+│ │                    vocab_root=PosixPath('/ist/ist-share/scads/thanyatho… │ │
+│ │                    │   │                                                 │ │
+│ │                    output_root=PosixPath('/ist/ist-share/scads/thanyath… │ │
+│ │                    │   │                                                 │ │
+│ │                    cache_root=PosixPath('/ist/ist-share/scads/thanyatho… │ │
+│ │                    │   │                                                 │ │
+│ │                    logs_root=PosixPath('/ist/ist-share/scads/thanyathon… │ │
+│ │                    │   ),                                                │ │
+│ │                    │   openfda=OpenFDAConfig(                            │ │
+│ │                    │   │                                                 │ │
+│ │                    download_manifest_url='https://api.fda.gov/download.… │ │
+│ │                    │   │   partition_key='drug/event',                   │ │
+│ │                    │   │   api_token_env='OPENFDA_API_KEY',              │ │
+│ │                    │   │   partitions=[],                                │ │
+│ │                    │   │   quarters=[],                                  │ │
+│ │                    │   │   max_partitions=0,                             │ │
+│ │                    │   │   parallel_downloads=2,                         │ │
+│ │                    │   │   chunk_size=16777216,                          │ │
+│ │                    │   │   retry_attempts=2,                             │ │
+│ │                    │   │   retry_backoff_seconds=1.0                     │ │
+│ │                    │   ),                                                │ │
+│ │                    │   cohorts=CohortConfig(                             │ │
+│ │                    │   │   age_cutoff=21,                                │ │
+│ │                    │   │   age_column='patient_custom_master_age',       │ │
+│ │                    │   │   pediatric_comparator='<=',                    │ │
+│ │                    │   │   adult_comparator='>'                          │ │
+│ │                    │   ),                                                │ │
+│ │                    │   rxnorm=RxNormConfig(                              │ │
+│ │                    │   │   base_url='https://rxnav.nlm.nih.gov/REST',    │ │
+│ │                    │   │   concurrency=3,                                │ │
+│ │                    │   │   throttle_seconds=0.1,                         │ │
+│ │                    │   │   retry_attempts=5,                             │ │
+│ │                    │   │   retry_backoff_seconds=2.0                     │ │
+│ │                    │   ),                                                │ │
+│ │                    │   chemistry=ChemicalConfig(                         │ │
+│ │                    │   │                                                 │ │
+│ │                    pubchem_base_url='https://pubchem.ncbi.nlm.nih.gov/r… │ │
+│ │                    │   │                                                 │ │
+│ │                    chembl_base_url='https://www.ebi.ac.uk/chembl/api/da… │ │
+│ │                    │   │                                                 │ │
+│ │                    unichem_base_url='https://www.ebi.ac.uk/unichem/rest… │ │
+│ │                    │   │   include_drugbank=False,                       │ │
+│ │                    │   │   smiles_sources=[                              │ │
+│ │                    │   │   │   'pubchem',                                │ │
+│ │                    │   │   │   'chembl',                                 │ │
+│ │                    │   │   │   'unichem'                                 │ │
+│ │                    │   │   ]                                             │ │
+│ │                    │   ),                                                │ │
+│ │                    │   llm=LLMConfig(                                    │ │
+│ │                    │   │   enabled=False,                                │ │
+│ │                    │   │   model='gpt-5-nano',                           │ │
+│ │                    │   │   chunk_size=250,                               │ │
+│ │                    │   │   cache_results=True,                           │ │
+│ │                    │   │   openai_api_key_env='OPENAI_API_KEY'           │ │
+│ │                    │   ),                                                │ │
+│ │                    │   huggingface=HuggingFaceConfig(                    │ │
+│ │                    │   │   repo_id='',                                   │ │
+│ │                    │   │   branch='main',                                │ │
+│ │                    │   │   private=False,                                │ │
+│ │                    │   │   token_env='HF_TOKEN'                          │ │
+│ │                    │   ),                                                │ │
+│ │                    │   stages=StageToggles(                              │ │
+│ │                    │   │   s01_fetch_openfda=False,                      │ │
+│ │                    │   │   s02_entity_format=False,                      │ │
+│ │                    │   │   s02_openfda_high_memory=False,                │ │
+│ │                    │   │   s03_join_partition_age=True,                  │ │
+│ │                    │   │   s05_split_adr=True,                           │ │
+│ │                    │   │   s06_map_omop_meddra=True,                     │ │
+│ │                    │   │   s06b_map_omop_meddra_full_hierarchy=True,     │ │
+│ │                    │   │   s07_split_drug=True,                          │ │
+│ │                    │   │   s08_enrich_drug_identifiers=True,             │ │
+│ │                    │   │   s09_finalize_merge_and_report=True,           │ │
+│ │                    │   │   s10_package_deliverables=True                 │ │
+│ │                    │   ),                                                │ │
+│ │                    │   metadata={                                        │ │
+│ │                    │   │   'owner': 'test-runner',                       │ │
+│ │                    │   │   'max_rows_per_table': 0,                      │ │
+│ │                    │   │   'prefer_er_tables': True,                     │ │
+│ │                    │   │   'er_tables_path':                             │ │
+│ │                    'data/test_sample/er_tables',                         │ │
+│ │                    │   │   'finalize_chunk_rows': 100000,                │ │
+│ │                    │   │   's02_stream_stage': 's02_entity_format'       │ │
+│ │                    │   }                                                 │ │
+│ │                    )                                                     │ │
+│ │      config_path = PosixPath('/ist/ist-share/scads/thanyathonk/fears_da… │ │
+│ │              ctx = PipelineContext(                                      │ │
+│ │                    │   config=PipelineConfig(                            │ │
+│ │                    │   │   paths=PathsConfig(                            │ │
+│ │                    │   │   │                                             │ │
+│ │                    root=PosixPath('/ist/ist-share/scads/thanyathonk/fea… │ │
+│ │                    │   │   │                                             │ │
+│ │                    data_root=PosixPath('/ist/ist-share/scads/thanyathon… │ │
+│ │                    │   │   │                                             │ │
+│ │                    staging_root=PosixPath('/ist/ist-share/scads/thanyat… │ │
+│ │                    │   │   │                                             │ │
+│ │                    raw_root=PosixPath('/ist/ist-share/scads/thanyathonk… │ │
+│ │                    │   │   │                                             │ │
+│ │                    reference_root=PosixPath('/ist/ist-share/scads/thany… │ │
+│ │                    │   │   │                                             │ │
+│ │                    vocab_root=PosixPath('/ist/ist-share/scads/thanyatho… │ │
+│ │                    │   │   │                                             │ │
+│ │                    output_root=PosixPath('/ist/ist-share/scads/thanyath… │ │
+│ │                    │   │   │                                             │ │
+│ │                    cache_root=PosixPath('/ist/ist-share/scads/thanyatho… │ │
+│ │                    │   │   │                                             │ │
+│ │                    logs_root=PosixPath('/ist/ist-share/scads/thanyathon… │ │
+│ │                    │   │   ),                                            │ │
+│ │                    │   │   openfda=OpenFDAConfig(                        │ │
+│ │                    │   │   │                                             │ │
+│ │                    download_manifest_url='https://api.fda.gov/download.… │ │
+│ │                    │   │   │   partition_key='drug/event',               │ │
+│ │                    │   │   │   api_token_env='OPENFDA_API_KEY',          │ │
+│ │                    │   │   │   partitions=[],                            │ │
+│ │                    │   │   │   quarters=[],                              │ │
+│ │                    │   │   │   max_partitions=0,                         │ │
+│ │                    │   │   │   parallel_downloads=2,                     │ │
+│ │                    │   │   │   chunk_size=16777216,                      │ │
+│ │                    │   │   │   retry_attempts=2,                         │ │
+│ │                    │   │   │   retry_backoff_seconds=1.0                 │ │
+│ │                    │   │   ),                                            │ │
+│ │                    │   │   cohorts=CohortConfig(                         │ │
+│ │                    │   │   │   age_cutoff=21,                            │ │
+│ │                    │   │   │   age_column='patient_custom_master_age',   │ │
+│ │                    │   │   │   pediatric_comparator='<=',                │ │
+│ │                    │   │   │   adult_comparator='>'                      │ │
+│ │                    │   │   ),                                            │ │
+│ │                    │   │   rxnorm=RxNormConfig(                          │ │
+│ │                    │   │   │                                             │ │
+│ │                    base_url='https://rxnav.nlm.nih.gov/REST',            │ │
+│ │                    │   │   │   concurrency=3,                            │ │
+│ │                    │   │   │   throttle_seconds=0.1,                     │ │
+│ │                    │   │   │   retry_attempts=5,                         │ │
+│ │                    │   │   │   retry_backoff_seconds=2.0                 │ │
+│ │                    │   │   ),                                            │ │
+│ │                    │   │   chemistry=ChemicalConfig(                     │ │
+│ │                    │   │   │                                             │ │
+│ │                    pubchem_base_url='https://pubchem.ncbi.nlm.nih.gov/r… │ │
+│ │                    │   │   │                                             │ │
+│ │                    chembl_base_url='https://www.ebi.ac.uk/chembl/api/da… │ │
+│ │                    │   │   │                                             │ │
+│ │                    unichem_base_url='https://www.ebi.ac.uk/unichem/rest… │ │
+│ │                    │   │   │   include_drugbank=False,                   │ │
+│ │                    │   │   │   smiles_sources=[                          │ │
+│ │                    │   │   │   │   'pubchem',                            │ │
+│ │                    │   │   │   │   'chembl',                             │ │
+│ │                    │   │   │   │   'unichem'                             │ │
+│ │                    │   │   │   ]                                         │ │
+│ │                    │   │   ),                                            │ │
+│ │                    │   │   llm=LLMConfig(                                │ │
+│ │                    │   │   │   enabled=False,                            │ │
+│ │                    │   │   │   model='gpt-5-nano',                       │ │
+│ │                    │   │   │   chunk_size=250,                           │ │
+│ │                    │   │   │   cache_results=True,                       │ │
+│ │                    │   │   │   openai_api_key_env='OPENAI_API_KEY'       │ │
+│ │                    │   │   ),                                            │ │
+│ │                    │   │   huggingface=HuggingFaceConfig(                │ │
+│ │                    │   │   │   repo_id='',                               │ │
+│ │                    │   │   │   branch='main',                            │ │
+│ │                    │   │   │   private=False,                            │ │
+│ │                    │   │   │   token_env='HF_TOKEN'                      │ │
+│ │                    │   │   ),                                            │ │
+│ │                    │   │   stages=StageToggles(                          │ │
+│ │                    │   │   │   s01_fetch_openfda=False,                  │ │
+│ │                    │   │   │   s02_entity_format=False,                  │ │
+│ │                    │   │   │   s02_openfda_high_memory=False,            │ │
+│ │                    │   │   │   s03_join_partition_age=True,              │ │
+│ │                    │   │   │   s05_split_adr=True,                       │ │
+│ │                    │   │   │   s06_map_omop_meddra=True,                 │ │
+│ │                    │   │   │   s06b_map_omop_meddra_full_hierarchy=True, │ │
+│ │                    │   │   │   s07_split_drug=True,                      │ │
+│ │                    │   │   │   s08_enrich_drug_identifiers=True,         │ │
+│ │                    │   │   │   s09_finalize_merge_and_report=True,       │ │
+│ │                    │   │   │   s10_package_deliverables=True             │ │
+│ │                    │   │   ),                                            │ │
+│ │                    │   │   metadata={                                    │ │
+│ │                    │   │   │   'owner': 'test-runner',                   │ │
+│ │                    │   │   │   'max_rows_per_table': 0,                  │ │
+│ │                    │   │   │   'prefer_er_tables': True,                 │ │
+│ │                    │   │   │   'er_tables_path':                         │ │
+│ │                    'data/test_sample/er_tables',                         │ │
+│ │                    │   │   │   'finalize_chunk_rows': 100000,            │ │
+│ │                    │   │   │   's02_stream_stage': 's02_entity_format'   │ │
+│ │                    │   │   }                                             │ │
+│ │                    │   ),                                                │ │
+│ │                    │   run_id='test_20260412T230159',                    │ │
+│ │                    │   run_ts=datetime.datetime(2026, 4, 12, 16, 2, 6,   │ │
+│ │                    695325),                                              │ │
+│ │                    │                                                     │ │
+│ │                    run_dir=PosixPath('/ist/ist-share/scads/thanyathonk/… │ │
+│ │                    │                                                     │ │
+│ │                    log_path=PosixPath('/ist/ist-share/scads/thanyathonk… │ │
+│ │                    )                                                     │ │
+│ │              cwd = PosixPath('/ist/ist-share/scads/thanyathonk/fears_da… │ │
+│ │              key = 's08_enrich_drug_identifiers'                         │ │
+│ │    pipeline_type = 'main'                                                │ │
+│ │         progress = <rich.progress.Progress object at 0x7fb4078d9a10>     │ │
+│ │ progress_columns = (                                                     │ │
+│ │                    │   <rich.progress.TextColumn object at               │ │
+│ │                    0x7fb4078d9790>,                                      │ │
+│ │                    │   <rich.progress.BarColumn object at                │ │
+│ │                    0x7fb4078d9650>,                                      │ │
+│ │                    │   <rich.progress.TextColumn object at               │ │
+│ │                    0x7fb4078d96d0>,                                      │ │
+│ │                    │   <rich.progress.TextColumn object at               │ │
+│ │                    0x7fb4078d97d0>,                                      │ │
+│ │                    │   <rich.progress.TimeElapsedColumn object at        │ │
+│ │                    0x7fb4078d9850>,                                      │ │
+│ │                    │   <rich.progress.TimeRemainingColumn object at      │ │
+│ │                    0x7fb4078d9990>                                       │ │
+│ │                    )                                                     │ │
+│ │           run_id = 'test_20260412T230159'                                │ │
+│ │             skip = set()                                                 │ │
+│ │      skip_stages = None                                                  │ │
+│ │       stage_keys = ['s08_enrich_drug_identifiers']                       │ │
+│ │      stage_order = ['s08_enrich_drug_identifiers']                       │ │
+│ │       start_time = 25507111.22159738                                     │ │
+│ │          task_id = 0                                                     │ │
+│ │           toggle = True                                                  │ │
+│ ╰──────────────────────────────────────────────────────────────────────────╯ │
+│                                                                              │
+│ /ist/ist-share/scads/thanyathonk/fears_dataset/src/stages/s08_enrich_drug_id │
+│ entifiers_local.py:886 in run                                                │
+│                                                                              │
+│    883 │   │   source = next((p for p in candidates if p.exists()), None)    │
+│    884 │   │                                                                 │
+│    885 │   │   if source is None:                                            │
+│ ❱  886 │   │   │   raise FileNotFoundError(                                  │
+│    887 │   │   │   │   f"Missing LLM-cleaned drug dataset for cohort '{cohor │
+│    888 │   │   │   │   f"Searched:\n" + "\n".join(f"  - {p}" for p in candid │
+│    889 │   │   │   )                                                         │
+│                                                                              │
+│ ╭───────────────────────────────── locals ─────────────────────────────────╮ │
+│ │         candidates = [                                                   │ │
+│ │                      │                                                   │ │
+│ │                      PosixPath('/ist/ist-share/scads/thanyathonk/fears_… │ │
+│ │                      │                                                   │ │
+│ │                      PosixPath('/ist/ist-share/scads/thanyathonk/fears_… │ │
+│ │                      │                                                   │ │
+│ │                      PosixPath('/ist/ist-share/scads/thanyathonk/fears_… │ │
+│ │                      │                                                   │ │
+│ │                      PosixPath('/ist/ist-share/scads/thanyathonk/fears_… │ │
+│ │                      ]                                                   │ │
+│ │             cohort = 'pediatric'                                         │ │
+│ │ cohorts_to_process = ('pediatric', 'adult')                              │ │
+│ │                ctx = PipelineContext(                                    │ │
+│ │                      │   config=PipelineConfig(                          │ │
+│ │                      │   │   paths=PathsConfig(                          │ │
+│ │                      │   │   │                                           │ │
+│ │                      root=PosixPath('/ist/ist-share/scads/thanyathonk/f… │ │
+│ │                      │   │   │                                           │ │
+│ │                      data_root=PosixPath('/ist/ist-share/scads/thanyath… │ │
+│ │                      │   │   │                                           │ │
+│ │                      staging_root=PosixPath('/ist/ist-share/scads/thany… │ │
+│ │                      │   │   │                                           │ │
+│ │                      raw_root=PosixPath('/ist/ist-share/scads/thanyatho… │ │
+│ │                      │   │   │                                           │ │
+│ │                      reference_root=PosixPath('/ist/ist-share/scads/tha… │ │
+│ │                      │   │   │                                           │ │
+│ │                      vocab_root=PosixPath('/ist/ist-share/scads/thanyat… │ │
+│ │                      │   │   │                                           │ │
+│ │                      output_root=PosixPath('/ist/ist-share/scads/thanya… │ │
+│ │                      │   │   │                                           │ │
+│ │                      cache_root=PosixPath('/ist/ist-share/scads/thanyat… │ │
+│ │                      │   │   │                                           │ │
+│ │                      logs_root=PosixPath('/ist/ist-share/scads/thanyath… │ │
+│ │                      │   │   ),                                          │ │
+│ │                      │   │   openfda=OpenFDAConfig(                      │ │
+│ │                      │   │   │                                           │ │
+│ │                      download_manifest_url='https://api.fda.gov/downloa… │ │
+│ │                      │   │   │   partition_key='drug/event',             │ │
+│ │                      │   │   │   api_token_env='OPENFDA_API_KEY',        │ │
+│ │                      │   │   │   partitions=[],                          │ │
+│ │                      │   │   │   quarters=[],                            │ │
+│ │                      │   │   │   max_partitions=0,                       │ │
+│ │                      │   │   │   parallel_downloads=2,                   │ │
+│ │                      │   │   │   chunk_size=16777216,                    │ │
+│ │                      │   │   │   retry_attempts=2,                       │ │
+│ │                      │   │   │   retry_backoff_seconds=1.0               │ │
+│ │                      │   │   ),                                          │ │
+│ │                      │   │   cohorts=CohortConfig(                       │ │
+│ │                      │   │   │   age_cutoff=21,                          │ │
+│ │                      │   │   │   age_column='patient_custom_master_age', │ │
+│ │                      │   │   │   pediatric_comparator='<=',              │ │
+│ │                      │   │   │   adult_comparator='>'                    │ │
+│ │                      │   │   ),                                          │ │
+│ │                      │   │   rxnorm=RxNormConfig(                        │ │
+│ │                      │   │   │                                           │ │
+│ │                      base_url='https://rxnav.nlm.nih.gov/REST',          │ │
+│ │                      │   │   │   concurrency=3,                          │ │
+│ │                      │   │   │   throttle_seconds=0.1,                   │ │
+│ │                      │   │   │   retry_attempts=5,                       │ │
+│ │                      │   │   │   retry_backoff_seconds=2.0               │ │
+│ │                      │   │   ),                                          │ │
+│ │                      │   │   chemistry=ChemicalConfig(                   │ │
+│ │                      │   │   │                                           │ │
+│ │                      pubchem_base_url='https://pubchem.ncbi.nlm.nih.gov… │ │
+│ │                      │   │   │                                           │ │
+│ │                      chembl_base_url='https://www.ebi.ac.uk/chembl/api/… │ │
+│ │                      │   │   │                                           │ │
+│ │                      unichem_base_url='https://www.ebi.ac.uk/unichem/re… │ │
+│ │                      │   │   │   include_drugbank=False,                 │ │
+│ │                      │   │   │   smiles_sources=[                        │ │
+│ │                      │   │   │   │   'pubchem',                          │ │
+│ │                      │   │   │   │   'chembl',                           │ │
+│ │                      │   │   │   │   'unichem'                           │ │
+│ │                      │   │   │   ]                                       │ │
+│ │                      │   │   ),                                          │ │
+│ │                      │   │   llm=LLMConfig(                              │ │
+│ │                      │   │   │   enabled=False,                          │ │
+│ │                      │   │   │   model='gpt-5-nano',                     │ │
+│ │                      │   │   │   chunk_size=250,                         │ │
+│ │                      │   │   │   cache_results=True,                     │ │
+│ │                      │   │   │   openai_api_key_env='OPENAI_API_KEY'     │ │
+│ │                      │   │   ),                                          │ │
+│ │                      │   │   huggingface=HuggingFaceConfig(              │ │
+│ │                      │   │   │   repo_id='',                             │ │
+│ │                      │   │   │   branch='main',                          │ │
+│ │                      │   │   │   private=False,                          │ │
+│ │                      │   │   │   token_env='HF_TOKEN'                    │ │
+│ │                      │   │   ),                                          │ │
+│ │                      │   │   stages=StageToggles(                        │ │
+│ │                      │   │   │   s01_fetch_openfda=False,                │ │
+│ │                      │   │   │   s02_entity_format=False,                │ │
+│ │                      │   │   │   s02_openfda_high_memory=False,          │ │
+│ │                      │   │   │   s03_join_partition_age=True,            │ │
+│ │                      │   │   │   s05_split_adr=True,                     │ │
+│ │                      │   │   │   s06_map_omop_meddra=True,               │ │
+│ │                      │   │   │                                           │ │
+│ │                      s06b_map_omop_meddra_full_hierarchy=True,           │ │
+│ │                      │   │   │   s07_split_drug=True,                    │ │
+│ │                      │   │   │   s08_enrich_drug_identifiers=True,       │ │
+│ │                      │   │   │   s09_finalize_merge_and_report=True,     │ │
+│ │                      │   │   │   s10_package_deliverables=True           │ │
+│ │                      │   │   ),                                          │ │
+│ │                      │   │   metadata={                                  │ │
+│ │                      │   │   │   'owner': 'test-runner',                 │ │
+│ │                      │   │   │   'max_rows_per_table': 0,                │ │
+│ │                      │   │   │   'prefer_er_tables': True,               │ │
+│ │                      │   │   │   'er_tables_path':                       │ │
+│ │                      'data/test_sample/er_tables',                       │ │
+│ │                      │   │   │   'finalize_chunk_rows': 100000,          │ │
+│ │                      │   │   │   's02_stream_stage': 's02_entity_format' │ │
+│ │                      │   │   }                                           │ │
+│ │                      │   ),                                              │ │
+│ │                      │   run_id='test_20260412T230159',                  │ │
+│ │                      │   run_ts=datetime.datetime(2026, 4, 12, 16, 2, 6, │ │
+│ │                      695325),                                            │ │
+│ │                      │                                                   │ │
+│ │                      run_dir=PosixPath('/ist/ist-share/scads/thanyathon… │ │
+│ │                      │                                                   │ │
+│ │                      log_path=PosixPath('/ist/ist-share/scads/thanyatho… │ │
+│ │                      )                                                   │ │
+│ │   force_enrichment = False                                               │ │
+│ │       global_cache = {}                                                  │ │
+│ │   manifest_payload = {}                                                  │ │
+│ │         output_dir = PosixPath('/ist/ist-share/scads/thanyathonk/fears_… │ │
+│ │             source = None                                                │ │
+│ │         source_dir = PosixPath('/ist/ist-share/scads/thanyathonk/fears_… │ │
+│ │      target_cohort = None                                                │ │
+│ ╰──────────────────────────────────────────────────────────────────────────╯ │
+╰──────────────────────────────────────────────────────────────────────────────╯
+FileNotFoundError: Missing LLM-cleaned drug dataset for cohort 'pediatric'.
+Searched:
+  - 
+/ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/s07b_llm_clean/p
+ediatric_drugs_llm_cleaned_full_data.parquet
+  - 
+/ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/s07b_llm_clean/p
+ediatric_drugs_clean_full_data.parquet
+  - 
+/ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/s07b_llm_clean/p
+ediatric_drugs_llm_cleaned.parquet
+  - 
+/ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/s07b_llm_clean/p
+ediatric_drugs_clean.parquet

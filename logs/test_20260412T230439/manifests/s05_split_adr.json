@@ -1,0 +1,17 @@
+{
+  "stage": "s05_split_adr",
+  "cohorts": {
+    "pediatric": {
+      "input_rows": 487,
+      "adr_rows": 85,
+      "unique_terms": 78,
+      "output_path": "/ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/s05_split_adr/pediatric_adr_full_data.parquet"
+    },
+    "adult": {
+      "input_rows": 4644,
+      "adr_rows": 720,
+      "unique_terms": 434,
+      "output_path": "/ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/s05_split_adr/adult_adr_full_data.parquet"
+    }
+  }
+}

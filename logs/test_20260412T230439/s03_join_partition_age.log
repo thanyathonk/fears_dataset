@@ -1,0 +1,21 @@
+
+📋 Pipeline Configuration
+  Pipeline Type: main
+  Working Directory: /ist/ist-share/scads/thanyathonk/fears_dataset
+  Config Path: 
+/ist/ist-share/scads/thanyathonk/fears_dataset/configs/config.local.yaml
+  Root Directory: /ist/ist-share/scads/thanyathonk/fears_dataset
+  Output Directory: 
+/ist/ist-share/scads/thanyathonk/fears_dataset/data/test_output
+
+build pediatric cohort:   0%|          | 0/1 [00:00<?, ?it/s]build pediatric cohort: 100%|██████████| 1/1 [00:00<00:00, 45100.04it/s]
+build adult cohort:   0%|          | 0/1 [00:00<?, ?it/s]build adult cohort: 100%|██████████| 1/1 [00:00<00:00, 31536.12it/s]
+build pediatric drug mapping input:   0%|          | 0/1 [00:00<?, ?it/s]build pediatric drug mapping input: 100%|██████████| 1/1 [00:00<00:00, 34379.54it/s]
+2026-04-12 23:04:40.019 | INFO     | src.stages.s03_join_partition_age:_build_cohort_drug_mapping_input:371 - [S03][pediatric] 27 unique reports in cohort
+2026-04-12 23:04:40.045 | INFO     | src.stages.s03_join_partition_age:_build_cohort_drug_mapping_input:405 - [S03][pediatric] drug_mapping_input rows=91 → /ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/s03_join_partition_age/pediatric_drug_mapping_input.parquet
+build adult drug mapping input:   0%|          | 0/1 [00:00<?, ?it/s]build adult drug mapping input: 100%|██████████| 1/1 [00:00<00:00, 28926.23it/s]
+2026-04-12 23:04:40.048 | INFO     | src.stages.s03_join_partition_age:_build_cohort_drug_mapping_input:371 - [S03][adult] 227 unique reports in cohort
+2026-04-12 23:04:40.079 | INFO     | src.stages.s03_join_partition_age:_build_cohort_drug_mapping_input:405 - [S03][adult] drug_mapping_input rows=613 → /ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/s03_join_partition_age/adult_drug_mapping_input.parquet
+2026-04-12 23:04:40.092 | SUCCESS  | src.stages.s03_join_partition_age:run:563 - [S03] Cohorts generated — adult=4644, pediatric=487 | drug_mapping adult=613, pediatric=91
+Completed stage s03_join_partition_age (0:00:00.130570)
+

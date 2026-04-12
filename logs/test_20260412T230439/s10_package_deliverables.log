@@ -1,0 +1,86 @@
+
+📋 Pipeline Configuration
+  Pipeline Type: main
+  Working Directory: /ist/ist-share/scads/thanyathonk/fears_dataset
+  Config Path: 
+/ist/ist-share/scads/thanyathonk/fears_dataset/configs/config.local.yaml
+  Root Directory: /ist/ist-share/scads/thanyathonk/fears_dataset
+  Output Directory: 
+/ist/ist-share/scads/thanyathonk/fears_dataset/data/test_output
+
+2026-04-12 23:08:40.363 | INFO     | src.stages.s10_package_deliverables:_log_box:37 - 
+[S10][summary] ┌────────────────────────┐
+[S10][summary] │ Packaging deliverables │
+[S10][summary] ├────────────────────────┤
+[S10][summary] │ status: start          │
+[S10][summary] └────────────────────────┘
+2026-04-12 23:08:40.381 | INFO     | src.stages.s10_package_deliverables:_log_box:37 - 
+[S10][pediatric] ┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+[S10][pediatric] │ Patient report                                                                                                                          │
+[S10][pediatric] ├─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+[S10][pediatric] │ rows: 30                                                                                                                                │
+[S10][pediatric] │ path: /ist/ist-share/scads/thanyathonk/fears_dataset/data/test_output/Pediatric/patient_report_reporter_drug_reaction_full_data.parquet │
+[S10][pediatric] └─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+2026-04-12 23:08:40.388 | INFO     | src.stages.s10_package_deliverables:_log_box:37 - 
+[S10][pediatric] ┌────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+[S10][pediatric] │ Deliverable                                                                                            │
+[S10][pediatric] ├────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+[S10][pediatric] │ name: drug_full_data.parquet                                                                           │
+[S10][pediatric] │ rows: 19                                                                                               │
+[S10][pediatric] │ path: /ist/ist-share/scads/thanyathonk/fears_dataset/data/test_output/Pediatric/drug_full_data.parquet │
+[S10][pediatric] └────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+2026-04-12 23:08:40.395 | INFO     | src.stages.s10_package_deliverables:_log_box:37 - 
+[S10][pediatric] ┌───────────────────────────────────────────────────────────────────────────────────────────────────────┐
+[S10][pediatric] │ Deliverable                                                                                           │
+[S10][pediatric] ├───────────────────────────────────────────────────────────────────────────────────────────────────────┤
+[S10][pediatric] │ name: adr_full_data.parquet                                                                           │
+[S10][pediatric] │ rows: 17                                                                                              │
+[S10][pediatric] │ path: /ist/ist-share/scads/thanyathonk/fears_dataset/data/test_output/Pediatric/adr_full_data.parquet │
+[S10][pediatric] └───────────────────────────────────────────────────────────────────────────────────────────────────────┘
+2026-04-12 23:08:40.402 | INFO     | src.stages.s10_package_deliverables:_log_box:37 - 
+[S10][pediatric] ┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+[S10][pediatric] │ Deliverable                                                                                                         │
+[S10][pediatric] ├─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+[S10][pediatric] │ name: standard_reaction_full_data.parquet                                                                           │
+[S10][pediatric] │ rows: 17                                                                                                            │
+[S10][pediatric] │ path: /ist/ist-share/scads/thanyathonk/fears_dataset/data/test_output/Pediatric/standard_reaction_full_data.parquet │
+[S10][pediatric] └─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+2026-04-12 23:08:40.403 | INFO     | src.stages.s10_package_deliverables:_log_box:37 - 
+[S10][adult] ┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+[S10][adult] │ Patient report                                                                                                                      │
+[S10][adult] ├─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+[S10][adult] │ rows: 88                                                                                                                            │
+[S10][adult] │ path: /ist/ist-share/scads/thanyathonk/fears_dataset/data/test_output/Adult/patient_report_reporter_drug_reaction_full_data.parquet │
+[S10][adult] └─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+2026-04-12 23:08:40.408 | INFO     | src.stages.s10_package_deliverables:_log_box:37 - 
+[S10][adult] ┌────────────────────────────────────────────────────────────────────────────────────────────────────┐
+[S10][adult] │ Deliverable                                                                                        │
+[S10][adult] ├────────────────────────────────────────────────────────────────────────────────────────────────────┤
+[S10][adult] │ name: drug_full_data.parquet                                                                       │
+[S10][adult] │ rows: 30                                                                                           │
+[S10][adult] │ path: /ist/ist-share/scads/thanyathonk/fears_dataset/data/test_output/Adult/drug_full_data.parquet │
+[S10][adult] └────────────────────────────────────────────────────────────────────────────────────────────────────┘
+2026-04-12 23:08:40.412 | INFO     | src.stages.s10_package_deliverables:_log_box:37 - 
+[S10][adult] ┌───────────────────────────────────────────────────────────────────────────────────────────────────┐
+[S10][adult] │ Deliverable                                                                                       │
+[S10][adult] ├───────────────────────────────────────────────────────────────────────────────────────────────────┤
+[S10][adult] │ name: adr_full_data.parquet                                                                       │
+[S10][adult] │ rows: 60                                                                                          │
+[S10][adult] │ path: /ist/ist-share/scads/thanyathonk/fears_dataset/data/test_output/Adult/adr_full_data.parquet │
+[S10][adult] └───────────────────────────────────────────────────────────────────────────────────────────────────┘
+2026-04-12 23:08:40.417 | INFO     | src.stages.s10_package_deliverables:_log_box:37 - 
+[S10][adult] ┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+[S10][adult] │ Deliverable                                                                                                     │
+[S10][adult] ├─────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+[S10][adult] │ name: standard_reaction_full_data.parquet                                                                       │
+[S10][adult] │ rows: 60                                                                                                        │
+[S10][adult] │ path: /ist/ist-share/scads/thanyathonk/fears_dataset/data/test_output/Adult/standard_reaction_full_data.parquet │
+[S10][adult] └─────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+2026-04-12 23:08:40.417 | INFO     | src.stages.s10_package_deliverables:_log_box:37 - 
+[S10][summary] ┌─────────────────────────────────┐
+[S10][summary] │ Packaging complete              │
+[S10][summary] ├─────────────────────────────────┤
+[S10][summary] │ cohorts: ['pediatric', 'adult'] │
+[S10][summary] └─────────────────────────────────┘
+Completed stage s10_package_deliverables (0:00:00.053502)
+

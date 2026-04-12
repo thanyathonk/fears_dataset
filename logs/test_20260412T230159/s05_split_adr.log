@@ -1,0 +1,16 @@
+
+📋 Pipeline Configuration
+  Pipeline Type: main
+  Working Directory: /ist/ist-share/scads/thanyathonk/fears_dataset
+  Config Path: 
+/ist/ist-share/scads/thanyathonk/fears_dataset/configs/config.local.yaml
+  Root Directory: /ist/ist-share/scads/thanyathonk/fears_dataset
+  Output Directory: 
+/ist/ist-share/scads/thanyathonk/fears_dataset/data/test_output
+
+S05 cohorts:   0%|          | 0/2 [00:00<?, ?it/s]2026-04-12 23:02:00.508 | INFO     | src.stages.s05_split_adr:run:86 - [S05] Cohort pediatric ADR rows=85 unique_terms=78
+2026-04-12 23:02:00.531 | INFO     | src.stages.s05_split_adr:run:86 - [S05] Cohort adult ADR rows=720 unique_terms=434
+S05 cohorts: 100%|██████████| 2/2 [00:00<00:00, 40.95it/s]
+2026-04-12 23:02:00.533 | SUCCESS  | src.stages.s05_split_adr:run:91 - [S05] ADR extraction complete
+Completed stage s05_split_adr (0:00:00.050488)
+

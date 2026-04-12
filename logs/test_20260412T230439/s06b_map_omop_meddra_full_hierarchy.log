@@ -1,0 +1,72 @@
+
+📋 Pipeline Configuration
+  Pipeline Type: main
+  Working Directory: /ist/ist-share/scads/thanyathonk/fears_dataset
+  Config Path: 
+/ist/ist-share/scads/thanyathonk/fears_dataset/configs/config.local.yaml
+  Root Directory: /ist/ist-share/scads/thanyathonk/fears_dataset
+  Output Directory: 
+/ist/ist-share/scads/thanyathonk/fears_dataset/data/test_output
+
+2026-04-12 23:04:44.054 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_build_meddra_resources:158 - [S06b] Loading CONCEPT.csv...
+2026-04-12 23:04:44.453 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_load_concept_relationship:63 - [S06b] Loading CONCEPT_RELATIONSHIP (filtering for 112,196 MedDRA concepts)...
+2026-04-12 23:04:45.380 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_build_edge_tables:105 - [S06b] Building edge tables...
+2026-04-12 23:04:45.392 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_build_edge_tables:146 - [S06b] Edge tables: 39,959 PT→HLT, 1,836 HLT→HLGT, 364 HLGT→SOC
+2026-04-12 23:04:45.392 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_build_meddra_resources:172 - [S06b] Loaded 26,667 PT, 1,813 HLT, 352 HLGT, 27 SOC concepts
+2026-04-12 23:04:45.395 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:391 - ================================================================================
+2026-04-12 23:04:45.395 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:392 - [S06b] MedDRA full-hierarchy mapping (adult + pediatric)
+2026-04-12 23:04:45.395 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:393 - ================================================================================
+2026-04-12 23:04:45.395 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:396 - 
+2026-04-12 23:04:45.396 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:397 - ┌──────────────────────────────────────────────────────────────────────────────┐
+2026-04-12 23:04:45.396 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:398 - │ Cohort: PEDIATRIC                                                               │
+2026-04-12 23:04:45.396 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:399 - └──────────────────────────────────────────────────────────────────────────────┘
+2026-04-12 23:04:45.396 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:292 - [S06b][PEDIATRIC] Step 0/4: Deduplicating reaction terms...
+2026-04-12 23:04:45.412 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:308 - [S06b][PEDIATRIC]   → 85 → 78 unique terms (8.24% reduction)
+2026-04-12 23:04:45.412 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:314 - [S06b][PEDIATRIC] Step 1/4: Mapping reaction terms → MedDRA PT...
+2026-04-12 23:04:45.414 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:324 - [S06b][PEDIATRIC] Step 2/4: Building PT→HLT→HLGT→SOC paths...
+2026-04-12 23:04:45.414 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_build_full_paths:188 - [S06b] Building full hierarchy paths...
+2026-04-12 23:04:45.423 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_build_full_paths:236 - [S06b] Built 43,048 full paths (26,667 unique PTs)
+2026-04-12 23:04:45.423 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:328 - [S06b][PEDIATRIC] Step 3/4: Filtering excluded SOCs...
+2026-04-12 23:04:45.424 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:331 - [S06b][PEDIATRIC]   → Removed 3,126 paths (excluded SOCs: Surgical and medical procedures, Social circumstances, Product issues)
+2026-04-12 23:04:45.428 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:343 - [S06b][PEDIATRIC] Step 4/4: Aggregating and writing outputs...
+2026-04-12 23:04:45.428 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_aggregate_by_pt:245 - [S06b] Aggregating paths by PT...
+2026-04-12 23:04:45.429 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_aggregate_by_pt:265 - [S06b] Aggregated to 74 unique PTs
+2026-04-12 23:04:45.435 | SUCCESS  | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:357 - [S06b][PEDIATRIC] ✓ 76/78 unique ADRs mapped (97.44%) | 74 PTs · 83 HLTs · 60 HLGTs · 21 SOCs
+2026-04-12 23:04:45.435 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:362 - [S06b][PEDIATRIC]   Dictionary : /ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/s06b_map_omop_meddra_full_hierarchy/pediatric/pt_hierarchy_dictionary_full_data.parquet
+2026-04-12 23:04:45.435 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:363 - [S06b][PEDIATRIC]   Paths      : /ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/s06b_map_omop_meddra_full_hierarchy/pediatric/pt_hierarchy_paths_full_data.parquet
+2026-04-12 23:04:45.436 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:396 - 
+2026-04-12 23:04:45.436 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:397 - ┌──────────────────────────────────────────────────────────────────────────────┐
+2026-04-12 23:04:45.436 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:398 - │ Cohort: ADULT                                                                   │
+2026-04-12 23:04:45.436 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:399 - └──────────────────────────────────────────────────────────────────────────────┘
+2026-04-12 23:04:45.437 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:292 - [S06b][ADULT] Step 0/4: Deduplicating reaction terms...
+2026-04-12 23:04:45.441 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:308 - [S06b][ADULT]   → 720 → 434 unique terms (39.72% reduction)
+2026-04-12 23:04:45.441 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:314 - [S06b][ADULT] Step 1/4: Mapping reaction terms → MedDRA PT...
+2026-04-12 23:04:45.443 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:324 - [S06b][ADULT] Step 2/4: Building PT→HLT→HLGT→SOC paths...
+2026-04-12 23:04:45.443 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_build_full_paths:188 - [S06b] Building full hierarchy paths...
+2026-04-12 23:04:45.452 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_build_full_paths:236 - [S06b] Built 43,048 full paths (26,667 unique PTs)
+2026-04-12 23:04:45.452 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:328 - [S06b][ADULT] Step 3/4: Filtering excluded SOCs...
+2026-04-12 23:04:45.453 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:331 - [S06b][ADULT]   → Removed 3,126 paths (excluded SOCs: Surgical and medical procedures, Social circumstances, Product issues)
+2026-04-12 23:04:45.455 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:343 - [S06b][ADULT] Step 4/4: Aggregating and writing outputs...
+2026-04-12 23:04:45.455 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_aggregate_by_pt:245 - [S06b] Aggregating paths by PT...
+2026-04-12 23:04:45.456 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_aggregate_by_pt:265 - [S06b] Aggregated to 414 unique PTs
+2026-04-12 23:04:45.466 | SUCCESS  | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:357 - [S06b][ADULT] ✓ 426/434 unique ADRs mapped (98.16%) | 414 PTs · 347 HLTs · 176 HLGTs · 23 SOCs
+2026-04-12 23:04:45.466 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:362 - [S06b][ADULT]   Dictionary : /ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/s06b_map_omop_meddra_full_hierarchy/adult/pt_hierarchy_dictionary_full_data.parquet
+2026-04-12 23:04:45.466 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:363 - [S06b][ADULT]   Paths      : /ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/s06b_map_omop_meddra_full_hierarchy/adult/pt_hierarchy_paths_full_data.parquet
+2026-04-12 23:04:45.467 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:430 - 
+2026-04-12 23:04:45.467 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:431 - ================================================================================
+2026-04-12 23:04:45.467 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:432 - [S06b] Summary
+2026-04-12 23:04:45.467 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:433 - ================================================================================
+2026-04-12 23:04:45.468 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:434 - ┌────────────┬──────────────┬──────────────┬────────────┬──────┬──────┬───────┬──────┐
+2026-04-12 23:04:45.468 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:437 - │ Cohort     │ Input ADRs   │ Mapped ADRs  │ Coverage   │  PTs │ HLTs │ HLGTs │ SOCs │
+2026-04-12 23:04:45.468 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:440 - ├────────────┼──────────────┼──────────────┼────────────┼──────┼──────┼───────┼──────┤
+2026-04-12 23:04:45.468 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:445 - │ pediatric  │           85 │           76 │     97.44% │   74 │   83 │    60 │   21 │
+2026-04-12 23:04:45.468 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:445 - │ adult      │          720 │          426 │     98.16% │  414 │  347 │   176 │   23 │
+2026-04-12 23:04:45.468 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:450 - └────────────┴──────────────┴──────────────┴────────────┴──────┴──────┴───────┴──────┘
+2026-04-12 23:04:45.468 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:453 - 
+2026-04-12 23:04:45.468 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:454 -   Excluded SOCs : Surgical and medical procedures, Social circumstances, Product issues
+2026-04-12 23:04:45.469 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:455 -   Reaction filter: NONE (all terms kept)
+2026-04-12 23:04:45.469 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:456 -   Hierarchy      : PT → HLT → HLGT → SOC  (4 levels via CONCEPT_RELATIONSHIP)
+2026-04-12 23:04:45.469 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:457 - 
+2026-04-12 23:04:45.469 | SUCCESS  | src.stages.s06b_map_omop_meddra_full_hierarchy:run:464 - [S06b] Full-hierarchy MedDRA mapping complete
+Completed stage s06b_map_omop_meddra_full_hierarchy (0:00:01.416099)
+

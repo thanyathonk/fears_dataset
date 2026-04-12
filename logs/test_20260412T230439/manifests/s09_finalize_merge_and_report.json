@@ -1,0 +1,29 @@
+{
+  "stage": "s09_finalize_merge_and_report",
+  "cohorts": {
+    "pediatric": {
+      "clean_rows": 487,
+      "unique_drug_before": 50,
+      "output_rows": 30,
+      "mapped_rows": 30,
+      "missing_rows": 0,
+      "unique_drug_after": 19,
+      "unique_drug_missing": 31,
+      "meddra_mapped": 30,
+      "rxnorm_mapped": 30,
+      "output_path": "/ist/ist-share/scads/thanyathonk/fears_dataset/data/test_output/Pediatric/patient_report_reporter_drug_reaction_full_data.parquet"
+    },
+    "adult": {
+      "clean_rows": 4644,
+      "unique_drug_before": 49,
+      "output_rows": 88,
+      "mapped_rows": 88,
+      "missing_rows": 0,
+      "unique_drug_after": 30,
+      "unique_drug_missing": 19,
+      "meddra_mapped": 88,
+      "rxnorm_mapped": 88,
+      "output_path": "/ist/ist-share/scads/thanyathonk/fears_dataset/data/test_output/Adult/patient_report_reporter_drug_reaction_full_data.parquet"
+    }
+  }
+}

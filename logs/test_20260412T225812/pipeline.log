@@ -1,0 +1,137 @@
+2026-04-12 22:58:13.191 | INFO     | src.stages.s03_join_partition_age:_build_cohort_drug_mapping_input:371 - [S03][pediatric] 27 unique reports in cohort
+2026-04-12 22:58:13.218 | INFO     | src.stages.s03_join_partition_age:_build_cohort_drug_mapping_input:405 - [S03][pediatric] drug_mapping_input rows=91 → /ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/s03_join_partition_age/pediatric_drug_mapping_input.parquet
+2026-04-12 22:58:13.221 | INFO     | src.stages.s03_join_partition_age:_build_cohort_drug_mapping_input:371 - [S03][adult] 227 unique reports in cohort
+2026-04-12 22:58:13.249 | INFO     | src.stages.s03_join_partition_age:_build_cohort_drug_mapping_input:405 - [S03][adult] drug_mapping_input rows=613 → /ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/s03_join_partition_age/adult_drug_mapping_input.parquet
+2026-04-12 22:58:13.262 | SUCCESS  | src.stages.s03_join_partition_age:run:563 - [S03] Cohorts generated — adult=4644, pediatric=487 | drug_mapping adult=613, pediatric=91
+2026-04-12 22:58:15.157 | INFO     | src.stages.s05_split_adr:run:86 - [S05] Cohort pediatric ADR rows=85 unique_terms=78
+2026-04-12 22:58:15.166 | INFO     | src.stages.s05_split_adr:run:86 - [S05] Cohort adult ADR rows=720 unique_terms=434
+2026-04-12 22:58:15.167 | SUCCESS  | src.stages.s05_split_adr:run:91 - [S05] ADR extraction complete
+2026-04-12 22:58:16.037 | INFO     | src.stages.s06_map_omop_meddra:_build_meddra_resources:91 - [S06] Loading CONCEPT.csv...
+2026-04-12 22:58:16.441 | INFO     | src.stages.s06_map_omop_meddra:_load_concept_ancestor:52 - [S06] Loading CONCEPT_ANCESTOR (filtering for 26667 PTs -> 27 SOCs)...
+2026-04-12 22:58:17.282 | INFO     | src.stages.s06_map_omop_meddra:_build_meddra_resources:104 - [S06] Loaded 26667 PT concepts, 27 SOC concepts, 35,697 PT->SOC relationships
+2026-04-12 22:58:17.284 | INFO     | src.stages.s06_map_omop_meddra:run:309 - ================================================================================
+2026-04-12 22:58:17.284 | INFO     | src.stages.s06_map_omop_meddra:run:310 - [S06] Starting MedDRA mapping for 2 cohorts (adult, pediatric)
+2026-04-12 22:58:17.284 | INFO     | src.stages.s06_map_omop_meddra:run:311 - ================================================================================
+2026-04-12 22:58:17.284 | INFO     | src.stages.s06_map_omop_meddra:run:314 - 
+2026-04-12 22:58:17.284 | INFO     | src.stages.s06_map_omop_meddra:run:315 - ┌──────────────────────────────────────────────────────────────────────────────┐
+2026-04-12 22:58:17.284 | INFO     | src.stages.s06_map_omop_meddra:run:316 - │ Processing Cohort: PEDIATRIC                                                       │
+2026-04-12 22:58:17.285 | INFO     | src.stages.s06_map_omop_meddra:run:317 - └──────────────────────────────────────────────────────────────────────────────┘
+2026-04-12 22:58:17.285 | INFO     | src.stages.s06_map_omop_meddra:_map_cohort_adr:155 - [S06][PEDIATRIC] Step 1/3: Mapping ADR terms to MedDRA PT (Title Case)...
+2026-04-12 22:58:17.303 | INFO     | src.stages.s06_map_omop_meddra:_map_cohort_adr:169 - [S06][PEDIATRIC] Step 2/3: Mapping PT to SOC using CONCEPT_ANCESTOR...
+2026-04-12 22:58:17.307 | INFO     | src.stages.s06_map_omop_meddra:_map_cohort_adr:231 - [S06][PEDIATRIC] Step 3/3: Filtering excluded SOC categories...
+2026-04-12 22:58:17.308 | INFO     | src.stages.s06_map_omop_meddra:_map_cohort_adr:240 - [S06][PEDIATRIC]   → Removed 2 rows with excluded SOCs
+2026-04-12 22:58:17.312 | INFO     | src.stages.s06_map_omop_meddra:_map_cohort_adr:265 - [S06][PEDIATRIC] Created dictionary: 71 unique PTs (excluded 3 SOC categories: Surgical and medical procedures, Social circumstances, Product issues)
+2026-04-12 22:58:17.313 | SUCCESS  | src.stages.s06_map_omop_meddra:_map_cohort_adr:285 - [S06][PEDIATRIC] ✓ Completed: 83/85 ADRs mapped (97.65%), 71 PTs, 22 SOCs
+2026-04-12 22:58:17.314 | INFO     | src.stages.s06_map_omop_meddra:run:314 - 
+2026-04-12 22:58:17.314 | INFO     | src.stages.s06_map_omop_meddra:run:315 - ┌──────────────────────────────────────────────────────────────────────────────┐
+2026-04-12 22:58:17.314 | INFO     | src.stages.s06_map_omop_meddra:run:316 - │ Processing Cohort: ADULT                                                           │
+2026-04-12 22:58:17.314 | INFO     | src.stages.s06_map_omop_meddra:run:317 - └──────────────────────────────────────────────────────────────────────────────┘
+2026-04-12 22:58:17.317 | INFO     | src.stages.s06_map_omop_meddra:_map_cohort_adr:155 - [S06][ADULT] Step 1/3: Mapping ADR terms to MedDRA PT (Title Case)...
+2026-04-12 22:58:17.320 | INFO     | src.stages.s06_map_omop_meddra:_map_cohort_adr:169 - [S06][ADULT] Step 2/3: Mapping PT to SOC using CONCEPT_ANCESTOR...
+2026-04-12 22:58:17.323 | INFO     | src.stages.s06_map_omop_meddra:_map_cohort_adr:231 - [S06][ADULT] Step 3/3: Filtering excluded SOC categories...
+2026-04-12 22:58:17.324 | INFO     | src.stages.s06_map_omop_meddra:_map_cohort_adr:240 - [S06][ADULT]   → Removed 48 rows with excluded SOCs
+2026-04-12 22:58:17.326 | INFO     | src.stages.s06_map_omop_meddra:_map_cohort_adr:265 - [S06][ADULT] Created dictionary: 394 unique PTs (excluded 3 SOC categories: Surgical and medical procedures, Social circumstances, Product issues)
+2026-04-12 22:58:17.327 | SUCCESS  | src.stages.s06_map_omop_meddra:_map_cohort_adr:285 - [S06][ADULT] ✓ Completed: 712/720 ADRs mapped (98.89%), 394 PTs, 23 SOCs
+2026-04-12 22:58:17.328 | INFO     | src.stages.s06_map_omop_meddra:run:350 - 
+2026-04-12 22:58:17.328 | INFO     | src.stages.s06_map_omop_meddra:run:351 - ================================================================================
+2026-04-12 22:58:17.328 | INFO     | src.stages.s06_map_omop_meddra:run:352 - [S06] MedDRA Mapping Summary
+2026-04-12 22:58:17.329 | INFO     | src.stages.s06_map_omop_meddra:run:353 - ================================================================================
+2026-04-12 22:58:17.329 | INFO     | src.stages.s06_map_omop_meddra:run:354 - 
+2026-04-12 22:58:17.329 | INFO     | src.stages.s06_map_omop_meddra:run:355 - ┌────────────┬──────────────┬──────────────┬────────────┬─────────────┬──────────┐
+2026-04-12 22:58:17.329 | INFO     | src.stages.s06_map_omop_meddra:run:356 - │ Cohort     │ Input ADRs   │ Mapped ADRs  │ Coverage   │ Unique PTs  │ Unique   │
+2026-04-12 22:58:17.329 | INFO     | src.stages.s06_map_omop_meddra:run:357 - │            │              │              │            │             │ SOCs     │
+2026-04-12 22:58:17.329 | INFO     | src.stages.s06_map_omop_meddra:run:358 - ├────────────┼──────────────┼──────────────┼────────────┼─────────────┼──────────┤
+2026-04-12 22:58:17.329 | INFO     | src.stages.s06_map_omop_meddra:run:362 - │ pediatric  │           85 │           83 │     97.65% │          71 │       22 │
+2026-04-12 22:58:17.329 | INFO     | src.stages.s06_map_omop_meddra:run:362 - │ adult      │          720 │          712 │     98.89% │         394 │       23 │
+2026-04-12 22:58:17.330 | INFO     | src.stages.s06_map_omop_meddra:run:368 - └────────────┴──────────────┴──────────────┴────────────┴─────────────┴──────────┘
+2026-04-12 22:58:17.330 | INFO     | src.stages.s06_map_omop_meddra:run:369 - 
+2026-04-12 22:58:17.330 | INFO     | src.stages.s06_map_omop_meddra:run:372 - Output files:
+2026-04-12 22:58:17.330 | INFO     | src.stages.s06_map_omop_meddra:run:375 -   • pediatric: /ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/s06_map_omop_meddra/pediatric/pt_soc_dictionary_full_data.parquet
+2026-04-12 22:58:17.330 | INFO     | src.stages.s06_map_omop_meddra:run:375 -   • adult: /ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/s06_map_omop_meddra/adult/pt_soc_dictionary_full_data.parquet
+2026-04-12 22:58:17.330 | INFO     | src.stages.s06_map_omop_meddra:run:377 - 
+2026-04-12 22:58:17.330 | INFO     | src.stages.s06_map_omop_meddra:run:378 - Notes:
+2026-04-12 22:58:17.330 | INFO     | src.stages.s06_map_omop_meddra:run:379 -   • Text matching: Title Case normalization
+2026-04-12 22:58:17.331 | INFO     | src.stages.s06_map_omop_meddra:run:380 -   • Excluded SOCs: 3 categories
+2026-04-12 22:58:17.331 | INFO     | src.stages.s06_map_omop_meddra:run:381 -     (Surgical and medical procedures, Social circumstances, Product issues)
+2026-04-12 22:58:17.331 | INFO     | src.stages.s06_map_omop_meddra:run:382 -   • Reaction pattern filtering: REMOVED (all reaction terms kept)
+2026-04-12 22:58:17.331 | INFO     | src.stages.s06_map_omop_meddra:run:383 - 
+2026-04-12 22:58:17.332 | SUCCESS  | src.stages.s06_map_omop_meddra:run:390 - [S06] MedDRA mapping complete
+2026-04-12 22:58:18.429 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_build_meddra_resources:158 - [S06b] Loading CONCEPT.csv...
+2026-04-12 22:58:18.829 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_load_concept_relationship:63 - [S06b] Loading CONCEPT_RELATIONSHIP (filtering for 112,196 MedDRA concepts)...
+2026-04-12 22:58:19.748 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_build_edge_tables:105 - [S06b] Building edge tables...
+2026-04-12 22:58:19.760 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_build_edge_tables:146 - [S06b] Edge tables: 39,959 PT→HLT, 1,836 HLT→HLGT, 364 HLGT→SOC
+2026-04-12 22:58:19.761 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_build_meddra_resources:172 - [S06b] Loaded 26,667 PT, 1,813 HLT, 352 HLGT, 27 SOC concepts
+2026-04-12 22:58:19.763 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:391 - ================================================================================
+2026-04-12 22:58:19.764 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:392 - [S06b] MedDRA full-hierarchy mapping (adult + pediatric)
+2026-04-12 22:58:19.764 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:393 - ================================================================================
+2026-04-12 22:58:19.764 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:396 - 
+2026-04-12 22:58:19.764 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:397 - ┌──────────────────────────────────────────────────────────────────────────────┐
+2026-04-12 22:58:19.764 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:398 - │ Cohort: PEDIATRIC                                                               │
+2026-04-12 22:58:19.764 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:399 - └──────────────────────────────────────────────────────────────────────────────┘
+2026-04-12 22:58:19.765 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:292 - [S06b][PEDIATRIC] Step 0/4: Deduplicating reaction terms...
+2026-04-12 22:58:19.781 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:308 - [S06b][PEDIATRIC]   → 85 → 78 unique terms (8.24% reduction)
+2026-04-12 22:58:19.781 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:314 - [S06b][PEDIATRIC] Step 1/4: Mapping reaction terms → MedDRA PT...
+2026-04-12 22:58:19.783 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:324 - [S06b][PEDIATRIC] Step 2/4: Building PT→HLT→HLGT→SOC paths...
+2026-04-12 22:58:19.783 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_build_full_paths:188 - [S06b] Building full hierarchy paths...
+2026-04-12 22:58:19.794 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_build_full_paths:236 - [S06b] Built 43,048 full paths (26,667 unique PTs)
+2026-04-12 22:58:19.795 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:328 - [S06b][PEDIATRIC] Step 3/4: Filtering excluded SOCs...
+2026-04-12 22:58:19.795 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:331 - [S06b][PEDIATRIC]   → Removed 3,126 paths (excluded SOCs: Surgical and medical procedures, Social circumstances, Product issues)
+2026-04-12 22:58:19.800 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:343 - [S06b][PEDIATRIC] Step 4/4: Aggregating and writing outputs...
+2026-04-12 22:58:19.800 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_aggregate_by_pt:245 - [S06b] Aggregating paths by PT...
+2026-04-12 22:58:19.803 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_aggregate_by_pt:265 - [S06b] Aggregated to 74 unique PTs
+2026-04-12 22:58:19.806 | SUCCESS  | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:357 - [S06b][PEDIATRIC] ✓ 76/78 unique ADRs mapped (97.44%) | 74 PTs · 83 HLTs · 60 HLGTs · 21 SOCs
+2026-04-12 22:58:19.806 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:362 - [S06b][PEDIATRIC]   Dictionary : /ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/s06b_map_omop_meddra_full_hierarchy/pediatric/pt_hierarchy_dictionary_full_data.parquet
+2026-04-12 22:58:19.806 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:363 - [S06b][PEDIATRIC]   Paths      : /ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/s06b_map_omop_meddra_full_hierarchy/pediatric/pt_hierarchy_paths_full_data.parquet
+2026-04-12 22:58:19.807 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:396 - 
+2026-04-12 22:58:19.807 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:397 - ┌──────────────────────────────────────────────────────────────────────────────┐
+2026-04-12 22:58:19.807 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:398 - │ Cohort: ADULT                                                                   │
+2026-04-12 22:58:19.807 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:399 - └──────────────────────────────────────────────────────────────────────────────┘
+2026-04-12 22:58:19.808 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:292 - [S06b][ADULT] Step 0/4: Deduplicating reaction terms...
+2026-04-12 22:58:19.811 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:308 - [S06b][ADULT]   → 720 → 434 unique terms (39.72% reduction)
+2026-04-12 22:58:19.811 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:314 - [S06b][ADULT] Step 1/4: Mapping reaction terms → MedDRA PT...
+2026-04-12 22:58:19.813 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:324 - [S06b][ADULT] Step 2/4: Building PT→HLT→HLGT→SOC paths...
+2026-04-12 22:58:19.813 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_build_full_paths:188 - [S06b] Building full hierarchy paths...
+2026-04-12 22:58:19.821 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_build_full_paths:236 - [S06b] Built 43,048 full paths (26,667 unique PTs)
+2026-04-12 22:58:19.822 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:328 - [S06b][ADULT] Step 3/4: Filtering excluded SOCs...
+2026-04-12 22:58:19.823 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:331 - [S06b][ADULT]   → Removed 3,126 paths (excluded SOCs: Surgical and medical procedures, Social circumstances, Product issues)
+2026-04-12 22:58:19.824 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:343 - [S06b][ADULT] Step 4/4: Aggregating and writing outputs...
+2026-04-12 22:58:19.824 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_aggregate_by_pt:245 - [S06b] Aggregating paths by PT...
+2026-04-12 22:58:19.826 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_aggregate_by_pt:265 - [S06b] Aggregated to 414 unique PTs
+2026-04-12 22:58:19.838 | SUCCESS  | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:357 - [S06b][ADULT] ✓ 426/434 unique ADRs mapped (98.16%) | 414 PTs · 347 HLTs · 176 HLGTs · 23 SOCs
+2026-04-12 22:58:19.838 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:362 - [S06b][ADULT]   Dictionary : /ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/s06b_map_omop_meddra_full_hierarchy/adult/pt_hierarchy_dictionary_full_data.parquet
+2026-04-12 22:58:19.838 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:_map_cohort_adr:363 - [S06b][ADULT]   Paths      : /ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/s06b_map_omop_meddra_full_hierarchy/adult/pt_hierarchy_paths_full_data.parquet
+2026-04-12 22:58:19.839 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:430 - 
+2026-04-12 22:58:19.839 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:431 - ================================================================================
+2026-04-12 22:58:19.840 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:432 - [S06b] Summary
+2026-04-12 22:58:19.840 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:433 - ================================================================================
+2026-04-12 22:58:19.840 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:434 - ┌────────────┬──────────────┬──────────────┬────────────┬──────┬──────┬───────┬──────┐
+2026-04-12 22:58:19.840 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:437 - │ Cohort     │ Input ADRs   │ Mapped ADRs  │ Coverage   │  PTs │ HLTs │ HLGTs │ SOCs │
+2026-04-12 22:58:19.840 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:440 - ├────────────┼──────────────┼──────────────┼────────────┼──────┼──────┼───────┼──────┤
+2026-04-12 22:58:19.840 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:445 - │ pediatric  │           85 │           76 │     97.44% │   74 │   83 │    60 │   21 │
+2026-04-12 22:58:19.840 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:445 - │ adult      │          720 │          426 │     98.16% │  414 │  347 │   176 │   23 │
+2026-04-12 22:58:19.840 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:450 - └────────────┴──────────────┴──────────────┴────────────┴──────┴──────┴───────┴──────┘
+2026-04-12 22:58:19.840 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:453 - 
+2026-04-12 22:58:19.841 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:454 -   Excluded SOCs : Surgical and medical procedures, Social circumstances, Product issues
+2026-04-12 22:58:19.841 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:455 -   Reaction filter: NONE (all terms kept)
+2026-04-12 22:58:19.841 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:456 -   Hierarchy      : PT → HLT → HLGT → SOC  (4 levels via CONCEPT_RELATIONSHIP)
+2026-04-12 22:58:19.841 | INFO     | src.stages.s06b_map_omop_meddra_full_hierarchy:run:457 - 
+2026-04-12 22:58:19.841 | SUCCESS  | src.stages.s06b_map_omop_meddra_full_hierarchy:run:464 - [S06b] Full-hierarchy MedDRA mapping complete
+2026-04-12 22:58:20.952 | INFO     | src.stages.s07_split_drug:run:158 - [S07] Building unique drug table for pediatric
+2026-04-12 22:58:20.983 | INFO     | src.stages.s07_split_drug:run:192 - [S07] pediatric: 54 unique medicinal_product rows (from 487 event rows)
+2026-04-12 22:58:20.984 | INFO     | src.stages.s07_split_drug:run:158 - [S07] Building unique drug table for adult
+2026-04-12 22:58:20.995 | INFO     | src.stages.s07_split_drug:run:192 - [S07] adult: 293 unique medicinal_product rows (from 4,644 event rows)
+2026-04-12 22:58:20.996 | SUCCESS  | src.stages.s07_split_drug:run:210 - [S07] Drug extraction complete
+2026-04-12 22:58:20.996 | INFO     | src.stages.s07_split_drug:run:211 - [S07] Next: run LLM script on {cohort}_drugs_full_data.parquet → {cohort}_drugs_llm_cleaned_full_data.parquet (basename + ingredients JSON), then S07b
+2026-04-12 22:58:25.616 | INFO     | src.stages.s08_enrich_drug_identifiers_local:run:873 - [Local] Processing all cohorts: pediatric, adult
+2026-04-12 22:58:27.107 | INFO     | src.stages.s09_finalize_merge_and_report:_log_box:242 - 
+[S09][pediatric] ┌─────────────────┐
+[S09][pediatric] │ Finalize cohort │
+[S09][pediatric] ├─────────────────┤
+[S09][pediatric] │ status: start   │
+[S09][pediatric] └─────────────────┘
+2026-04-12 22:58:27.857 | INFO     | src.stages.s10_package_deliverables:_log_box:37 - 
+[S10][summary] ┌────────────────────────┐
+[S10][summary] │ Packaging deliverables │
+[S10][summary] ├────────────────────────┤
+[S10][summary] │ status: start          │
+[S10][summary] └────────────────────────┘

@@ -1,0 +1,46 @@
+{
+  "stage": "s08_enrich_drug_identifiers_local",
+  "version": "8.0",
+  "connection_method": "rxnav_api_key + local_cid_offline + suffix_strip + chembl_brand + approx_match + kegg_inn",
+  "api_key_configured": false,
+  "pubchem_api_calls": false,
+  "overall_coverage_pct": 39.88,
+  "total_drugs_processed": 331,
+  "total_drugs_enriched": 132,
+  "cohorts": {
+    "pediatric": {
+      "total_drugs": 54,
+      "mapped_rows": 51,
+      "coverage_pct": 94.44,
+      "rxnav_basename": 46,
+      "rxnav_ingredients": 0,
+      "local_cid_fallback": 1,
+      "suffix_strip": 1,
+      "chembl_brand": 0,
+      "approx_match": 3,
+      "kegg_inn": 0,
+      "not_found": 3,
+      "main_output_rows": 51,
+      "quarantine_rows": 3,
+      "quarantine_path": "/ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/s08_enrich_drug_identifiers/quarantine/pediatric_drugs_quarantine.parquet",
+      "quarantine_suspicious_enabled": true
+    },
+    "adult": {
+      "total_drugs": 277,
+      "mapped_rows": 81,
+      "coverage_pct": 29.24,
+      "rxnav_basename": 50,
+      "rxnav_ingredients": 0,
+      "local_cid_fallback": 1,
+      "suffix_strip": 2,
+      "chembl_brand": 0,
+      "approx_match": 28,
+      "kegg_inn": 0,
+      "not_found": 196,
+      "main_output_rows": 62,
+      "quarantine_rows": 231,
+      "quarantine_path": "/ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/s08_enrich_drug_identifiers/quarantine/adult_drugs_quarantine.parquet",
+      "quarantine_suspicious_enabled": true
+    }
+  }
+}

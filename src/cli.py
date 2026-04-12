@@ -43,7 +43,8 @@ def _require_er_tables(ctx: PipelineContext, stage_keys: Iterable[str]) -> None:
     if not ER_DEPENDENT_STAGES.intersection(stage_keys):
         return
 
-    s02_dir = (ctx.config.paths.staging_root / "s02_entity_format").resolve()
+    s02_stage = ctx.config.metadata.get("s02_stream_stage", "s02_entity_format")
+    s02_dir = (ctx.config.paths.staging_root / s02_stage).resolve()
     if s02_dir.exists() and any(s02_dir.glob("*.parquet")):
         return
 

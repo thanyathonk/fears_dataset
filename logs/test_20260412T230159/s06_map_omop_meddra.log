@@ -1,0 +1,62 @@
+
+📋 Pipeline Configuration
+  Pipeline Type: main
+  Working Directory: /ist/ist-share/scads/thanyathonk/fears_dataset
+  Config Path: 
+/ist/ist-share/scads/thanyathonk/fears_dataset/configs/config.local.yaml
+  Root Directory: /ist/ist-share/scads/thanyathonk/fears_dataset
+  Output Directory: 
+/ist/ist-share/scads/thanyathonk/fears_dataset/data/test_output
+
+2026-04-12 23:02:01.348 | INFO     | src.stages.s06_map_omop_meddra:_build_meddra_resources:91 - [S06] Loading CONCEPT.csv...
+2026-04-12 23:02:01.753 | INFO     | src.stages.s06_map_omop_meddra:_load_concept_ancestor:52 - [S06] Loading CONCEPT_ANCESTOR (filtering for 26667 PTs -> 27 SOCs)...
+2026-04-12 23:02:02.587 | INFO     | src.stages.s06_map_omop_meddra:_build_meddra_resources:104 - [S06] Loaded 26667 PT concepts, 27 SOC concepts, 35,697 PT->SOC relationships
+2026-04-12 23:02:02.588 | INFO     | src.stages.s06_map_omop_meddra:run:309 - ================================================================================
+2026-04-12 23:02:02.588 | INFO     | src.stages.s06_map_omop_meddra:run:310 - [S06] Starting MedDRA mapping for 2 cohorts (adult, pediatric)
+2026-04-12 23:02:02.588 | INFO     | src.stages.s06_map_omop_meddra:run:311 - ================================================================================
+2026-04-12 23:02:02.588 | INFO     | src.stages.s06_map_omop_meddra:run:314 - 
+2026-04-12 23:02:02.588 | INFO     | src.stages.s06_map_omop_meddra:run:315 - ┌──────────────────────────────────────────────────────────────────────────────┐
+2026-04-12 23:02:02.589 | INFO     | src.stages.s06_map_omop_meddra:run:316 - │ Processing Cohort: PEDIATRIC                                                       │
+2026-04-12 23:02:02.589 | INFO     | src.stages.s06_map_omop_meddra:run:317 - └──────────────────────────────────────────────────────────────────────────────┘
+2026-04-12 23:02:02.589 | INFO     | src.stages.s06_map_omop_meddra:_map_cohort_adr:155 - [S06][PEDIATRIC] Step 1/3: Mapping ADR terms to MedDRA PT (Title Case)...
+2026-04-12 23:02:02.607 | INFO     | src.stages.s06_map_omop_meddra:_map_cohort_adr:169 - [S06][PEDIATRIC] Step 2/3: Mapping PT to SOC using CONCEPT_ANCESTOR...
+2026-04-12 23:02:02.610 | INFO     | src.stages.s06_map_omop_meddra:_map_cohort_adr:231 - [S06][PEDIATRIC] Step 3/3: Filtering excluded SOC categories...
+2026-04-12 23:02:02.611 | INFO     | src.stages.s06_map_omop_meddra:_map_cohort_adr:240 - [S06][PEDIATRIC]   → Removed 2 rows with excluded SOCs
+2026-04-12 23:02:02.626 | INFO     | src.stages.s06_map_omop_meddra:_map_cohort_adr:265 - [S06][PEDIATRIC] Created dictionary: 71 unique PTs (excluded 3 SOC categories: Surgical and medical procedures, Social circumstances, Product issues)
+2026-04-12 23:02:02.628 | SUCCESS  | src.stages.s06_map_omop_meddra:_map_cohort_adr:285 - [S06][PEDIATRIC] ✓ Completed: 83/85 ADRs mapped (97.65%), 71 PTs, 22 SOCs
+2026-04-12 23:02:02.628 | INFO     | src.stages.s06_map_omop_meddra:run:314 - 
+2026-04-12 23:02:02.629 | INFO     | src.stages.s06_map_omop_meddra:run:315 - ┌──────────────────────────────────────────────────────────────────────────────┐
+2026-04-12 23:02:02.629 | INFO     | src.stages.s06_map_omop_meddra:run:316 - │ Processing Cohort: ADULT                                                           │
+2026-04-12 23:02:02.629 | INFO     | src.stages.s06_map_omop_meddra:run:317 - └──────────────────────────────────────────────────────────────────────────────┘
+2026-04-12 23:02:02.631 | INFO     | src.stages.s06_map_omop_meddra:_map_cohort_adr:155 - [S06][ADULT] Step 1/3: Mapping ADR terms to MedDRA PT (Title Case)...
+2026-04-12 23:02:02.634 | INFO     | src.stages.s06_map_omop_meddra:_map_cohort_adr:169 - [S06][ADULT] Step 2/3: Mapping PT to SOC using CONCEPT_ANCESTOR...
+2026-04-12 23:02:02.637 | INFO     | src.stages.s06_map_omop_meddra:_map_cohort_adr:231 - [S06][ADULT] Step 3/3: Filtering excluded SOC categories...
+2026-04-12 23:02:02.638 | INFO     | src.stages.s06_map_omop_meddra:_map_cohort_adr:240 - [S06][ADULT]   → Removed 48 rows with excluded SOCs
+2026-04-12 23:02:02.641 | INFO     | src.stages.s06_map_omop_meddra:_map_cohort_adr:265 - [S06][ADULT] Created dictionary: 394 unique PTs (excluded 3 SOC categories: Surgical and medical procedures, Social circumstances, Product issues)
+2026-04-12 23:02:02.642 | SUCCESS  | src.stages.s06_map_omop_meddra:_map_cohort_adr:285 - [S06][ADULT] ✓ Completed: 712/720 ADRs mapped (98.89%), 394 PTs, 23 SOCs
+2026-04-12 23:02:02.643 | INFO     | src.stages.s06_map_omop_meddra:run:350 - 
+2026-04-12 23:02:02.643 | INFO     | src.stages.s06_map_omop_meddra:run:351 - ================================================================================
+2026-04-12 23:02:02.643 | INFO     | src.stages.s06_map_omop_meddra:run:352 - [S06] MedDRA Mapping Summary
+2026-04-12 23:02:02.643 | INFO     | src.stages.s06_map_omop_meddra:run:353 - ================================================================================
+2026-04-12 23:02:02.643 | INFO     | src.stages.s06_map_omop_meddra:run:354 - 
+2026-04-12 23:02:02.643 | INFO     | src.stages.s06_map_omop_meddra:run:355 - ┌────────────┬──────────────┬──────────────┬────────────┬─────────────┬──────────┐
+2026-04-12 23:02:02.643 | INFO     | src.stages.s06_map_omop_meddra:run:356 - │ Cohort     │ Input ADRs   │ Mapped ADRs  │ Coverage   │ Unique PTs  │ Unique   │
+2026-04-12 23:02:02.643 | INFO     | src.stages.s06_map_omop_meddra:run:357 - │            │              │              │            │             │ SOCs     │
+2026-04-12 23:02:02.644 | INFO     | src.stages.s06_map_omop_meddra:run:358 - ├────────────┼──────────────┼──────────────┼────────────┼─────────────┼──────────┤
+2026-04-12 23:02:02.644 | INFO     | src.stages.s06_map_omop_meddra:run:362 - │ pediatric  │           85 │           83 │     97.65% │          71 │       22 │
+2026-04-12 23:02:02.644 | INFO     | src.stages.s06_map_omop_meddra:run:362 - │ adult      │          720 │          712 │     98.89% │         394 │       23 │
+2026-04-12 23:02:02.644 | INFO     | src.stages.s06_map_omop_meddra:run:368 - └────────────┴──────────────┴──────────────┴────────────┴─────────────┴──────────┘
+2026-04-12 23:02:02.644 | INFO     | src.stages.s06_map_omop_meddra:run:369 - 
+2026-04-12 23:02:02.644 | INFO     | src.stages.s06_map_omop_meddra:run:372 - Output files:
+2026-04-12 23:02:02.644 | INFO     | src.stages.s06_map_omop_meddra:run:375 -   • pediatric: /ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/s06_map_omop_meddra/pediatric/pt_soc_dictionary_full_data.parquet
+2026-04-12 23:02:02.644 | INFO     | src.stages.s06_map_omop_meddra:run:375 -   • adult: /ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/s06_map_omop_meddra/adult/pt_soc_dictionary_full_data.parquet
+2026-04-12 23:02:02.645 | INFO     | src.stages.s06_map_omop_meddra:run:377 - 
+2026-04-12 23:02:02.645 | INFO     | src.stages.s06_map_omop_meddra:run:378 - Notes:
+2026-04-12 23:02:02.645 | INFO     | src.stages.s06_map_omop_meddra:run:379 -   • Text matching: Title Case normalization
+2026-04-12 23:02:02.645 | INFO     | src.stages.s06_map_omop_meddra:run:380 -   • Excluded SOCs: 3 categories
+2026-04-12 23:02:02.645 | INFO     | src.stages.s06_map_omop_meddra:run:381 -     (Surgical and medical procedures, Social circumstances, Product issues)
+2026-04-12 23:02:02.645 | INFO     | src.stages.s06_map_omop_meddra:run:382 -   • Reaction pattern filtering: REMOVED (all reaction terms kept)
+2026-04-12 23:02:02.645 | INFO     | src.stages.s06_map_omop_meddra:run:383 - 
+2026-04-12 23:02:02.646 | SUCCESS  | src.stages.s06_map_omop_meddra:run:390 - [S06] MedDRA mapping complete
+Completed stage s06_map_omop_meddra (0:00:01.298511)
+

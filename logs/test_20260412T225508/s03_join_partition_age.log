@@ -1,0 +1,17 @@
+
+📋 Pipeline Configuration
+  Pipeline Type: main
+  Working Directory: /ist/ist-share/scads/thanyathonk/fears_dataset
+  Config Path: 
+/ist/ist-share/scads/thanyathonk/fears_dataset/configs/config.local.yaml
+  Root Directory: /ist/ist-share/scads/thanyathonk/fears_dataset
+  Output Directory: 
+/ist/ist-share/scads/thanyathonk/fears_dataset/data/test_output
+
+ER tables not found. Please run S01 (fetch) and S02 (format) to generate the ER 
+tables directory before running S03-S10.
+  Checked: 
+/ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/staging/s02_enti
+ty_format
+  Checked: 
+/ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/er_tables

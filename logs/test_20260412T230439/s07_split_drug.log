@@ -1,0 +1,19 @@
+
+📋 Pipeline Configuration
+  Pipeline Type: main
+  Working Directory: /ist/ist-share/scads/thanyathonk/fears_dataset
+  Config Path: 
+/ist/ist-share/scads/thanyathonk/fears_dataset/configs/config.local.yaml
+  Root Directory: /ist/ist-share/scads/thanyathonk/fears_dataset
+  Output Directory: 
+/ist/ist-share/scads/thanyathonk/fears_dataset/data/test_output
+
+S07 cohorts:   0%|          | 0/2 [00:00<?, ?it/s]2026-04-12 23:04:46.554 | INFO     | src.stages.s07_split_drug:run:158 - [S07] Building unique drug table for pediatric
+2026-04-12 23:04:46.581 | INFO     | src.stages.s07_split_drug:run:192 - [S07] pediatric: 54 unique medicinal_product rows (from 487 event rows)
+2026-04-12 23:04:46.582 | INFO     | src.stages.s07_split_drug:run:158 - [S07] Building unique drug table for adult
+2026-04-12 23:04:46.593 | INFO     | src.stages.s07_split_drug:run:192 - [S07] adult: 293 unique medicinal_product rows (from 4,644 event rows)
+S07 cohorts: 100%|██████████| 2/2 [00:00<00:00, 50.75it/s]
+2026-04-12 23:04:46.594 | SUCCESS  | src.stages.s07_split_drug:run:210 - [S07] Drug extraction complete
+2026-04-12 23:04:46.594 | INFO     | src.stages.s07_split_drug:run:211 - [S07] Next: run LLM script on {cohort}_drugs_full_data.parquet → {cohort}_drugs_llm_cleaned_full_data.parquet (basename + ingredients JSON), then S07b
+Completed stage s07_split_drug (0:00:00.040823)
+

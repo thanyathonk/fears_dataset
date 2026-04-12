@@ -1,0 +1,29 @@
+{
+  "stage": "s06b_map_omop_meddra_full_hierarchy",
+  "cohorts": {
+    "pediatric": {
+      "adr_rows": 85,
+      "adr_unique_rows": 78,
+      "mapped_rows": 76,
+      "coverage_pct": 97.43589743589743,
+      "unique_pts": 74,
+      "unique_hlts": 83,
+      "unique_hlgts": 60,
+      "unique_socs": 21,
+      "dictionary_path": "/ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/s06b_map_omop_meddra_full_hierarchy/pediatric/pt_hierarchy_dictionary_full_data.parquet",
+      "paths_path": "/ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/s06b_map_omop_meddra_full_hierarchy/pediatric/pt_hierarchy_paths_full_data.parquet"
+    },
+    "adult": {
+      "adr_rows": 720,
+      "adr_unique_rows": 434,
+      "mapped_rows": 426,
+      "coverage_pct": 98.15668202764977,
+      "unique_pts": 414,
+      "unique_hlts": 347,
+      "unique_hlgts": 176,
+      "unique_socs": 23,
+      "dictionary_path": "/ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/s06b_map_omop_meddra_full_hierarchy/adult/pt_hierarchy_dictionary_full_data.parquet",
+      "paths_path": "/ist/ist-share/scads/thanyathonk/fears_dataset/data/test_sample/s06b_map_omop_meddra_full_hierarchy/adult/pt_hierarchy_paths_full_data.parquet"
+    }
+  }
+}
