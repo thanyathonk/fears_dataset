@@ -202,9 +202,9 @@ def _enumerate_csvs(folder: Path) -> Sequence[str]:
     return file_list
 
 
-# Per-folder header cache: folder path → {file_path: frozenset of column names}
-# Avoids re-reading headers when _scan_csv is called multiple times for the same folder.
-_FOLDER_HEADERS: dict[str, dict[str, frozenset]] = {}
+# Session-local header cache type: folder path → {file_path: frozenset of column names}
+# Created per run() call to avoid stale state across sessions.
+HeaderCache = dict[str, dict[str, frozenset]]
 
 
 def _read_one_header(fp: str) -> tuple[str, frozenset]:
@@ -216,10 +216,16 @@ def _read_one_header(fp: str) -> tuple[str, frozenset]:
         return fp, frozenset()
 
 
-def _get_file_headers(folder: Path, files: Sequence[str]) -> dict[str, frozenset]:
-    """Return cached {fp: frozenset(columns)} for all files in folder (parallel scan)."""
+def _get_file_headers(
+    folder: Path, files: Sequence[str], *, cache: HeaderCache
+) -> dict[str, frozenset]:
+    """Return cached {fp: frozenset(columns)} for all files in folder (parallel scan).
+
+    The *cache* dict is session-local (created in ``run()``) to avoid stale
+    state when the module is re-imported or long-running processes re-enter.
+    """
     key = str(folder)
-    if key not in _FOLDER_HEADERS:
+    if key not in cache:
         n = len(files)
         n_workers = min(16, max(1, n), cpu_count())
         print(f"  [{_ts()}] Scanning headers for {folder.name}/ ({n} files, workers={n_workers}) ...", flush=True)
@@ -227,24 +233,27 @@ def _get_file_headers(folder: Path, files: Sequence[str]) -> dict[str, frozenset
         results = Parallel(n_jobs=n_workers, backend="loky")(
             delayed(_read_one_header)(fp) for fp in files
         )
-        _FOLDER_HEADERS[key] = dict(results)  # type: ignore[arg-type]
+        cache[key] = dict(results)  # type: ignore[arg-type]
         print(f"  [{_ts()}] Header scan done in {time.time() - t0:.1f}s (cached)", flush=True)
     else:
         print(f"  [{_ts()}] Using cached headers for {folder.name}/ ({len(files)} files)", flush=True)
-    return _FOLDER_HEADERS[key]
+    return cache[key]
 
 
 def _scan_csv(
     folder: Path,
     columns: Iterable[str],
     dtypes: Mapping[str, pl.PolarsDataType] | None = None,
+    *,
+    cache: HeaderCache | None = None,
 ) -> pl.LazyFrame:
     files = _enumerate_csvs(folder)
     required = list(columns)
     dtype_map = dict(dtypes or {})
     scan_kw = dict(has_header=True, infer_schema_length=0, null_values=_NULLS, ignore_errors=True)
 
-    headers = _get_file_headers(folder, files)
+    _cache: HeaderCache = cache if cache is not None else {}
+    headers = _get_file_headers(folder, files, cache=_cache)
 
     frames = []
     for fp in files:

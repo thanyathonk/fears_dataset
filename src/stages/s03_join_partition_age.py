@@ -19,16 +19,9 @@ import polars as pl
 from loguru import logger
 from tqdm import tqdm
 
+from src.utils.constants import EXCLUDED_REPORTERS
 from src.utils.dates import parse_date_column
 from src.utils.io import PipelineContext, stage_output_path, write_manifest
-
-# Early quality filters (moved from S04 for better performance)
-# Keep only reporter-suspected drug lines (excludes concomitant / non-suspect).
-EXCLUDED_REPORTERS = [
-    "Unknown",
-    "Lawyer",
-    "Consumer or non-health professional"
-]
 
 # ============================================================================
 # Date Filtering Configuration
@@ -488,50 +481,55 @@ def run(ctx: PipelineContext) -> None:
     age_cutoff = float(ctx.config.cohorts.age_cutoff)
     age_col = pl.col("patient_custom_master_age")
 
-    for _ in tqdm(range(1), desc="build pediatric cohort"):
-        pass
-    pediatric_count = _build_cohort(
-        patient_lf, report_lf, report_serious_lf, reporter_lf, drug_lf, reaction_lf,
-        age_filter=(age_col >= 0) & (age_col <= age_cutoff),
-        add_nichd=True,
-        output_path=pediatric_path,
-    )
-
-    for _ in tqdm(range(1), desc="build adult cohort"):
-        pass
-    adult_count = _build_cohort(
-        patient_lf, report_lf, report_serious_lf, reporter_lf, drug_lf, reaction_lf,
-        age_filter=(age_col > age_cutoff) & (age_col <= MAX_PLAUSIBLE_AGE),
-        add_nichd=False,
-        output_path=adult_path,
-    )
-
-    # ── New: cohort-specific drug mapping inputs ──────────────────────────────
-    # Requires drug_mapping_input.parquet from S02 (new extended outputs).
-    # Gracefully skips if S02 has not yet been re-run with the new outputs.
+    # Cohort-specific drug mapping inputs (optional — requires S02 extended output)
     s02_dir = stage_output_path(ctx, ctx.config.metadata.get("s02_stream_stage", "s02_entity_format"))
     drug_mapping_input_path = s02_dir / "drug_mapping_input.parquet"
-
     pediatric_drug_mapping_count = 0
     adult_drug_mapping_count = 0
 
-    for _ in tqdm(range(1), desc="build pediatric drug mapping input"):
-        pass
-    pediatric_drug_mapping_count = _build_cohort_drug_mapping_input(
-        cohort="pediatric",
-        cohort_events_path=pediatric_path,
-        drug_mapping_input_path=drug_mapping_input_path,
-        output_dir=output_dir,
-    )
+    # Define all build steps so tqdm shows real progress across them
+    steps = [
+        ("Pediatric cohort", None),
+        ("Adult cohort", None),
+        ("Pediatric drug mapping", None),
+        ("Adult drug mapping", None),
+    ]
 
-    for _ in tqdm(range(1), desc="build adult drug mapping input"):
-        pass
-    adult_drug_mapping_count = _build_cohort_drug_mapping_input(
-        cohort="adult",
-        cohort_events_path=adult_path,
-        drug_mapping_input_path=drug_mapping_input_path,
-        output_dir=output_dir,
-    )
+    progress = tqdm(steps, desc="S03 build", unit="step")
+    for step_name, _ in progress:
+        progress.set_postfix_str(step_name)
+
+        if step_name == "Pediatric cohort":
+            pediatric_count = _build_cohort(
+                patient_lf, report_lf, report_serious_lf, reporter_lf, drug_lf, reaction_lf,
+                age_filter=(age_col >= 0) & (age_col <= age_cutoff),
+                add_nichd=True,
+                output_path=pediatric_path,
+            )
+
+        elif step_name == "Adult cohort":
+            adult_count = _build_cohort(
+                patient_lf, report_lf, report_serious_lf, reporter_lf, drug_lf, reaction_lf,
+                age_filter=(age_col > age_cutoff) & (age_col <= MAX_PLAUSIBLE_AGE),
+                add_nichd=False,
+                output_path=adult_path,
+            )
+
+        elif step_name == "Pediatric drug mapping":
+            pediatric_drug_mapping_count = _build_cohort_drug_mapping_input(
+                cohort="pediatric",
+                cohort_events_path=pediatric_path,
+                drug_mapping_input_path=drug_mapping_input_path,
+                output_dir=output_dir,
+            )
+
+        elif step_name == "Adult drug mapping":
+            adult_drug_mapping_count = _build_cohort_drug_mapping_input(
+                cohort="adult",
+                cohort_events_path=adult_path,
+                drug_mapping_input_path=drug_mapping_input_path,
+                output_dir=output_dir,
+            )
 
     # Validation for cohort drug mapping inputs
     adult_drug_mapping_path = output_dir / "adult_drug_mapping_input.parquet"
