@@ -28,13 +28,13 @@ console = Console()
 # Stages that require ER tables from S02
 ER_DEPENDENT_STAGES = {
     "s03_join_partition_age",
-    "s05_split_adr",
-    "s06_map_omop_meddra",
-    "s07_split_drug",
-    "s07b_llm_clean",
-    "s08_enrich_drug_identifiers",
-    "s09_finalize_merge_and_report",
-    "s10_package_deliverables",
+    "s04_split_adr",
+    "s05_map_omop_meddra",
+    "s06_split_drug",
+    "s06b_llm_clean",
+    "s07_enrich_drug_identifiers",
+    "s08_finalize_merge_and_report",
+    "s09_package_deliverables",
 }
 
 
@@ -146,10 +146,10 @@ def _run_selected(
 
 @app.command(name="run-stage")
 def run_stage(
-    stage: str = typer.Argument(..., help="Stage name (e.g., s07_split_drug)"),
+    stage: str = typer.Argument(..., help="Stage name (e.g., s06_split_drug)"),
     run_id: Optional[str] = typer.Option(None, help="Override run identifier."),
 ) -> None:
-    """Run a single stage by name (S01-S10)."""
+    """Run a single stage by name (S01-S09)."""
     if stage not in ORDERED_STAGES:
         console.print(f"[red]Unknown stage: {stage}[/red]")
         console.print(f"[yellow]Available stages: {', '.join(sorted(ORDERED_STAGES))}[/yellow]")
@@ -204,23 +204,23 @@ def enrich_local(
         os.environ.pop("TARGET_COHORT", None)
 
     # Use get_stage_callable for consistency
-    _run_selected(["s08_enrich_drug_identifiers"], run_id, None)
+    _run_selected(["s07_enrich_drug_identifiers"], run_id, None)
 
 
 @app.command()
 def finalize(
     run_id: Optional[str] = typer.Option(None, help="Override run identifier."),
 ) -> None:
-    """Run final merge/report stage S09."""
-    _run_selected(["s09_finalize_merge_and_report"], run_id, None)
+    """Run final merge/report stage S08."""
+    _run_selected(["s08_finalize_merge_and_report"], run_id, None)
 
 
 @app.command()
 def package(
     run_id: Optional[str] = typer.Option(None, help="Override run identifier."),
 ) -> None:
-    """Package deliverable tables (S10)."""
-    _run_selected(["s10_package_deliverables"], run_id, None)
+    """Package deliverable tables (S09)."""
+    _run_selected(["s09_package_deliverables"], run_id, None)
 
 
 @app.command(name="run-all")
@@ -231,7 +231,7 @@ def run_all(
         help="Comma-separated stage names to skip (e.g. 's01_fetch_openfda,s02_entity_format').",
     ),
 ) -> None:
-    """Run the full pipeline end-to-end (S01 through S10).
+    """Run the full pipeline end-to-end (S01 through S09).
 
     All stages run in order. Use --skip to skip specific stages (e.g. when
     S01/S02 data already exists or S07b requires a GPU not available here).
@@ -239,7 +239,7 @@ def run_all(
     Examples:
         python -m src.cli run-all
         python -m src.cli run-all --skip s01_fetch_openfda,s02_entity_format
-        python -m src.cli run-all --skip s01_fetch_openfda,s02_entity_format,s07b_llm_clean
+        python -m src.cli run-all --skip s01_fetch_openfda,s02_entity_format,s06b_llm_clean
     """
     skip_set = {s.strip() for s in skip.split(",") if s.strip()} if skip else set()
     if skip_set:

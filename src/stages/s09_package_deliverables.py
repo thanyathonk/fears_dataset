@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Stage S10 – Package deliverable tables for distribution (disk-friendly Polars)."""
+"""Stage S09 – Package deliverable tables for distribution (disk-friendly Polars)."""
 
 from pathlib import Path
 from typing import Dict
@@ -25,7 +25,7 @@ def _log_box(stage: str, title: str, **fields: object) -> None:
     lines = [f"{name}: {_format_value(value)}" for name, value in fields.items()]
     width = max(len(title), *(len(line) for line in lines)) if lines else len(title)
     border = "─" * (width + 2)
-    prefix = f"[S10][{stage}] "
+    prefix = f"[S09][{stage}] "
     rows = [
         prefix + "┌" + border + "┐",
         prefix + "│ " + title.ljust(width) + " │",

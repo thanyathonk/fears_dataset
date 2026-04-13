@@ -418,8 +418,8 @@ async def _enrich_names_direct(
 def run(ctx: PipelineContext) -> None:
     """Run Stage S08 Local: Drug identifier enrichment using Direct NCBI API."""
 
-    source_dir = stage_output_path(ctx, "s07b_llm_clean")
-    output_dir = stage_output_path(ctx, "s08_enrich_drug_identifiers")
+    source_dir = stage_output_path(ctx, "s06b_llm_clean")
+    output_dir = stage_output_path(ctx, "s07_enrich_drug_identifiers")
     output_dir.mkdir(parents=True, exist_ok=True)
 
     manifest_payload: Dict[str, Dict[str, object]] = {}
@@ -732,9 +732,9 @@ def run(ctx: PipelineContext) -> None:
 
     write_manifest(
         ctx,
-        "s08_enrich_drug_identifiers_local",
+        "s07_enrich_drug_identifiers_local",
         {
-            "stage": "s08_enrich_drug_identifiers_local",
+            "stage": "s07_enrich_drug_identifiers_local",
             "version": "1.0",
             "connection_method": "direct_ncbi_api_key",
             "api_key_configured": bool(NCBI_API_KEY),

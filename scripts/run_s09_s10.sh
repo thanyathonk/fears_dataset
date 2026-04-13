@@ -72,8 +72,8 @@ echo ""
 
 # Check prerequisites
 echo "Checking prerequisites..."
-check_prerequisite "S07b (LLM clean)"   "data/staging/s07b_llm_clean"
-check_prerequisite "S08 (Drug enrich)" "data/staging/s08_enrich_drug_identifiers"
+check_prerequisite "S07b (LLM clean)"   "data/staging/s06b_llm_clean"
+check_prerequisite "S08 (Drug enrich)" "data/staging/s07_enrich_drug_identifiers"
 echo "✅ All prerequisites found"
 echo ""
 

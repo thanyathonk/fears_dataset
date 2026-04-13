@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Stage S07 – One row per unique ``medicinal_product`` with **list**-valued drug context.
+"""Stage S06 – One row per unique ``medicinal_product`` with **list**-valued drug context.
 
 For each ``medicinal_product``, context columns collect **all distinct** non-empty values
 seen in events (sorted for stable output). No ``index`` column.
@@ -78,7 +78,7 @@ def _build_unique_drug_table(events_path: Path) -> pl.DataFrame:
     missing = [c for c in _EVENTS_REQUIRED if c not in schema_names]
     if missing:
         raise ValueError(
-            f"[S07] events parquet missing columns {missing}: {events_path}\n"
+            f"[S06] events parquet missing columns {missing}: {events_path}\n"
             "Re-run S03 after drugcharacteristics_extended is wired in."
         )
 
@@ -106,7 +106,7 @@ def _build_unique_drug_table(events_path: Path) -> pl.DataFrame:
         agg_exprs.append(_agg_distinct_sorted_utf8(c, out))
 
     if not agg_exprs:
-        raise RuntimeError("[S07] No aggregations — check events schema")
+        raise RuntimeError("[S06] No aggregations — check events schema")
 
     deduped = (
         events.group_by("medicinal_product", maintain_order=False)
@@ -149,13 +149,13 @@ def _build_unique_drug_table(events_path: Path) -> pl.DataFrame:
 
 def run(ctx: PipelineContext) -> None:
     source_dir = stage_output_path(ctx, "s03_join_partition_age")
-    output_dir = stage_output_path(ctx, "s07_split_drug")
+    output_dir = stage_output_path(ctx, "s06_split_drug")
     output_dir.mkdir(parents=True, exist_ok=True)
 
     manifest_payload: Dict[str, Dict[str, object]] = {}
 
     for cohort in tqdm(("pediatric", "adult"), desc="S07 cohorts"):
-        logger.info(f"[S07] Building unique drug table for {cohort}")
+        logger.info(f"[S06] Building unique drug table for {cohort}")
 
         events_path = source_dir / f"{cohort}_events_full_data.parquet"
         if not events_path.exists():
@@ -179,7 +179,7 @@ def run(ctx: PipelineContext) -> None:
 
         dq_summary_markdown(
             ctx,
-            "s07_split_drug",
+            "s06_split_drug",
             cohort,
             input_rows,
             unique_drugs.height,
@@ -190,7 +190,7 @@ def run(ctx: PipelineContext) -> None:
         )
 
         logger.info(
-            f"[S07] {cohort}: {unique_drugs.height:,} unique medicinal_product rows "
+            f"[S06] {cohort}: {unique_drugs.height:,} unique medicinal_product rows "
             f"(from {input_rows:,} event rows)"
         )
 
@@ -203,13 +203,13 @@ def run(ctx: PipelineContext) -> None:
 
     write_manifest(
         ctx,
-        "s07_split_drug",
-        {"stage": "s07_split_drug", "cohorts": manifest_payload},
+        "s06_split_drug",
+        {"stage": "s06_split_drug", "cohorts": manifest_payload},
     )
 
-    logger.success("[S07] Drug extraction complete")
+    logger.success("[S06] Drug extraction complete")
     logger.info(
-        "[S07] Next: run LLM script on {cohort}_drugs_full_data.parquet → "
+        "[S06] Next: run LLM script on {cohort}_drugs_full_data.parquet → "
         "{cohort}_drugs_llm_cleaned_full_data.parquet (basename + ingredients JSON), then S07b"
     )
 

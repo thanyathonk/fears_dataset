@@ -9,7 +9,7 @@
 #SBATCH --output=logs/slurm_s06_%j.out
 #SBATCH --error=logs/slurm_s06_%j.err
 
-# S06 — Map MedDRA PT to SOC (CONCEPT_ANCESTOR)
+# S06 — Collapse to unique drugs with context lists
 # Usage: sbatch scripts/slurm_stages/run_s06.sh
 
 set -euo pipefail
@@ -21,11 +21,11 @@ conda activate "${CONDA_ENV:-fulldata}"
 export PYTHONUNBUFFERED=1
 
 echo "=========================================="
-echo "Stage: s06_map_omop_meddra"
+echo "Stage: s06_split_drug"
 echo "Start: $(date)"
 echo "=========================================="
 
-python -m src.cli run-stage s06_map_omop_meddra
+python -m src.cli run-stage s06_split_drug
 
 echo "=========================================="
 echo "Done:  $(date)"

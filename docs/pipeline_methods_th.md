@@ -15,7 +15,7 @@
    - [S02 – จัดรูปแบบ Entity](#s02--จัดรูปแบบ-entity)
    - [S03 – Join และแบ่งกลุ่มอายุ](#s03--join-และแบ่งกลุ่มอายุ)
    - [S05 – แยกตาราง ADR](#s05--แยกตาราง-adr)
-   - [S06 / S06b – จับคู่ MedDRA](#s06--s06b--จับคู่-meddra)
+   - [S06 / S05b – จับคู่ MedDRA](#s06--s06b--จับคู่-meddra)
    - [S07 – รวมรายชื่อยา](#s07--รวมรายชื่อยา)
    - [S07b – LLM แยกส่วนประกอบยา](#s07b--llm-แยกส่วนประกอบยา)
    - [S08 – เพิ่มข้อมูล RxNorm](#s08--เพิ่มข้อมูล-rxnorm)
@@ -45,16 +45,16 @@ S03  Inner Join ทุกตาราง · กรองเฉพาะยา Su
     │
     ├──────────────────────────────────────┐
     ▼                                      ▼
-S05  ดึงแถว ADR ที่ไม่ซ้ำ            S07  รวมเป็นหนึ่งแถวต่อชื่อยา
+S04  ดึงแถว ADR ที่ไม่ซ้ำ            S06  รวมเป็นหนึ่งแถวต่อชื่อยา
      (safetyreportid, PT, outcome)          พร้อม context columns แบบ list
     │                                      │
     ▼                                      ▼
-S06/S06b  จับคู่ PT → SOC ผ่าน      S07b  LLM (Qwen) แยกโครงสร้างยา:
+S06/S05b  จับคู่ PT → SOC ผ่าน      S06b  LLM (Qwen) แยกโครงสร้างยา:
           MedDRA OMOP vocab               ingredients · strength · dosage_form
           → pt_soc_dictionary             ing_source = faers | llm | bracket
                                            │
                                            ▼
-                                    S08  เพิ่มข้อมูล RxNorm (7 ขั้นตอนต่อเนื่อง):
+                                    S07  เพิ่มข้อมูล RxNorm (7 ขั้นตอนต่อเนื่อง):
                                           basename → ingredient → LocalCID
                                           → ตัดคำต่อท้าย → ChEMBL → approx → KEGG
                                           + เติม ing_source (rxnav_basename ฯลฯ)
@@ -62,12 +62,12 @@ S06/S06b  จับคู่ PT → SOC ผ่าน      S07b  LLM (Qwen) แ�
     │                                      │
     └──────────────┬───────────────────────┘
                    ▼
-S09  Inner Join สามทาง: เหตุการณ์ × ข้อมูลยา × พจนานุกรม PT-SOC
+S08  Inner Join สามทาง: เหตุการณ์ × ข้อมูลยา × พจนานุกรม PT-SOC
      ลบซ้ำตาม (safetyreportid, medicinal_product, reaction_meddrapt)
      → patient_report_reporter_drug_reaction_full_data.parquet
                    │
                    ▼
-S10  แพ็กเกจตาราง Dimension:
+S09  แพ็กเกจตาราง Dimension:
      drug_full_data · adr_full_data · standard_reaction_full_data
 ```
 
@@ -155,25 +155,25 @@ S10  แพ็กเกจตาราง Dimension:
 
 ---
 
-### S05 – แยกตาราง ADR
+### S04 – แยกตาราง ADR
 
-**Script:** `src/stages/s05_split_adr.py`
+**Script:** `src/stages/s04_split_adr.py`
 
 ดึง tuple ที่ไม่ซ้ำของ `(safetyreportid, reaction_meddrapt, reaction_outcome)` จากข้อมูล S03 ใช้ `.drop_nulls(["reaction_meddrapt"]).unique()` เพื่อป้องกันแถวปฏิกิริยาซ้ำก่อนจับคู่กับ MedDRA
 
-**เอาต์พุต:** `data/staging/s05_split_adr/{cohort}_adr_full_data.parquet`
+**เอาต์พุต:** `data/staging/s04_split_adr/{cohort}_adr_full_data.parquet`
 
 ---
 
-### S06 / S06b – จับคู่ MedDRA
+### S05 / S05b – จับคู่ MedDRA
 
-**Scripts:** `src/stages/s06_map_omop_meddra.py` · `src/stages/s06b_map_omop_meddra_full_hierarchy.py`
+**Scripts:** `src/stages/s05_map_omop_meddra.py` · `src/stages/s05b_map_omop_meddra_full_hierarchy.py`
 
 จับคู่แต่ละ `reaction_meddrapt` (Preferred Term, PT) กับลำดับชั้น MedDRA โดยใช้ OMOP vocabulary (`vocabulary_SNOMED_MEDDRA_RxNorm_ATC`)
 
 **S06:** ใช้ `CONCEPT_ANCESTOR` เพื่อ map PT→SOC แบบย่อ สร้าง `pt_soc_dictionary_full_data.parquet` (ใช้ใน S09)
 
-**S06b:** ใช้ `CONCEPT_RELATIONSHIP` เพื่อสร้างลำดับชั้นเต็ม PT→HLT→HLGT→SOC สร้าง:
+**S05b:** ใช้ `CONCEPT_RELATIONSHIP` เพื่อสร้างลำดับชั้นเต็ม PT→HLT→HLGT→SOC สร้าง:
 - `pt_hierarchy_dictionary_full_data.parquet` — ข้อมูล PT พร้อม list รวมทุกระดับ
 - `pt_hierarchy_paths_full_data.parquet` — ขยายออกเป็นหนึ่งแถวต่อ path
 
@@ -184,13 +184,13 @@ S10  แพ็กเกจตาราง Dimension:
 
 การจับคู่ข้อความใช้ Title Case normalization ตามมาตรฐาน MedDRA
 
-**เอาต์พุต:** `data/staging/s06_map_omop_meddra/{cohort}/pt_soc_dictionary_full_data.parquet`
+**เอาต์พุต:** `data/staging/s05_map_omop_meddra/{cohort}/pt_soc_dictionary_full_data.parquet`
 
 ---
 
-### S07 – รวมรายชื่อยา
+### S06 – รวมรายชื่อยา
 
-**Script:** `src/stages/s07_split_drug.py`
+**Script:** `src/stages/s06_split_drug.py`
 
 ยุบตารางเหตุการณ์ให้เหลือหนึ่งแถวต่อ `medicinal_product` ที่ไม่ซ้ำ โดยรวม context columns เป็น list ที่ไม่ซ้ำและเรียงลำดับ (ผ่าน `implode().list.unique().list.sort()`):
 
@@ -201,13 +201,13 @@ S10  แพ็กเกจตาราง Dimension:
 
 ชื่อยาถูก Normalize ด้วย `normalize_faers_drug_name()` ก่อน Aggregation เพื่อลดความซ้ำซ้อนของชื่อที่ใกล้เคียงกัน
 
-**เอาต์พุต:** `data/staging/s07_split_drug/{cohort}_drugs_full_data.parquet`
+**เอาต์พุต:** `data/staging/s06_split_drug/{cohort}_drugs_full_data.parquet`
 
 ---
 
-### S07b – LLM แยกส่วนประกอบยา
+### S06b – LLM แยกส่วนประกอบยา
 
-**Script:** `src/stages/s07b_llm_clean.py` (รันใน process) · `scripts/s07_openai_run.py` (batch OpenAI)
+**Script:** `src/stages/s06b_llm_clean.py` (รันใน process) · `scripts/s07_openai_run.py` (batch OpenAI)
 
 แยกโครงสร้างข้อมูลยาจากชื่อยาดิบโดยใช้ Large Language Model (ค่าเริ่มต้น: `Qwen/Qwen2.5-32B-Instruct` หรือ OpenAI GPT-4)
 
@@ -234,13 +234,13 @@ S10  แพ็กเกจตาราง Dimension:
 | `qualifier_type` | str | `COUNTRY` / `BRAND` / … |
 | `ing_source` | str | `faers` / `llm` / `bracket` / `null` |
 
-**เอาต์พุต:** `data/staging/s07b_llm_clean/{cohort}_drugs_llm_cleaned.parquet`
+**เอาต์พุต:** `data/staging/s06b_llm_clean/{cohort}_drugs_llm_cleaned.parquet`
 
 ---
 
-### S08 – เพิ่มข้อมูล RxNorm
+### S07 – เพิ่มข้อมูล RxNorm
 
-**Script:** `src/stages/s08_enrich_drug_identifiers_local.py`
+**Script:** `src/stages/s07_enrich_drug_identifiers_local.py`
 
 แปลง `basename` ของแต่ละยา (จาก S07b) ให้เป็น **RxCUI** มาตรฐาน (RxNorm Concept Identifier) ผ่านการค้นหา 7 ขั้นตอนต่อเนื่อง จากนั้นเพิ่มรายชื่อ `rxnorm_ingredients`
 
@@ -265,7 +265,7 @@ S10  แพ็กเกจตาราง Dimension:
 
 หลัง enrichment แถวถูกแยกเป็น:
 
-| ปลายทาง | เงื่อนไข | `s08_quarantine_reason` |
+| ปลายทาง | เงื่อนไข | `s07_quarantine_reason` |
 |---------|---------|------------------------|
 | **main** `*_drugs_enriched.parquet` | มี `rxcui` และไม่น่าสงสัย | — |
 | **quarantine** `quarantine/*_drugs_quarantine.parquet` | `rxcui IS NULL` | `no_rxcui` |
@@ -275,14 +275,14 @@ S10  แพ็กเกจตาราง Dimension:
 ตั้ง `S08_QUARANTINE_ONLY_UNMAPPED=1` เพื่อส่ง quarantine เฉพาะแถวที่ map ไม่ได้เท่านั้น
 
 **เอาต์พุต:**
-- `data/staging/s08_enrich_drug_identifiers/{cohort}_drugs_enriched.parquet`
-- `data/staging/s08_enrich_drug_identifiers/quarantine/{cohort}_drugs_quarantine.parquet`
+- `data/staging/s07_enrich_drug_identifiers/{cohort}_drugs_enriched.parquet`
+- `data/staging/s07_enrich_drug_identifiers/quarantine/{cohort}_drugs_quarantine.parquet`
 
 ---
 
-### S09 – รวมข้อมูลสุดท้ายและลบซ้ำ
+### S08 – รวมข้อมูลสุดท้ายและลบซ้ำ
 
-**Script:** `src/stages/s09_finalize_merge_and_report.py`
+**Script:** `src/stages/s08_finalize_merge_and_report.py`
 
 ทำ Inner Join สามทางเพื่อสร้างตาราง Fact พร้อมใช้วิเคราะห์:
 
@@ -308,11 +308,11 @@ S10  แพ็กเกจตาราง Dimension:
 
 ---
 
-### S10 – แพ็กเกจไฟล์ส่งมอบ
+### S09 – แพ็กเกจไฟล์ส่งมอบ
 
-**Script:** `src/stages/s10_package_deliverables.py`
+**Script:** `src/stages/s09_package_deliverables.py`
 
-สร้างตาราง Dimension เพิ่มเติมอีกสามตารางจาก Fact table ของ S09 (ไม่มี Join ใหม่):
+สร้างตาราง Dimension เพิ่มเติมอีกสามตารางจาก Fact table ของ S08 (ไม่มี Join ใหม่):
 
 | ตาราง | คีย์ | Logic |
 |-------|------|-------|
@@ -335,10 +335,10 @@ S10  แพ็กเกจตาราง Dimension:
 | ผู้รายงานผ่านเกณฑ์ | S03 | ตัด Unknown / Lawyer / Consumer |
 | อายุถูกต้อง | S03 | อายุ 0–120; แถวที่อายุ null ถูกตัดออก |
 | ชื่อยาถูกต้อง | S03 | `medicinal_product IS NOT NULL AND len > 0` |
-| ครอบคลุม MedDRA | S09 | Inner join → เฉพาะ PT ที่อยู่ใน dictionary |
-| ครอบคลุม RxNorm | S09 | Inner join → เฉพาะยาที่ resolve `rxcui` ได้ |
-| ลบซ้ำ | S09 | Unique บน `(safetyreportid, medicinal_product, reaction_meddrapt)` |
-| Quarantine ยา map ไม่ได้ | S08 | `rxcui IS NULL` หรือชื่อน่าสงสัย → แยกไฟล์ |
+| ครอบคลุม MedDRA | S08 | Inner join → เฉพาะ PT ที่อยู่ใน dictionary |
+| ครอบคลุม RxNorm | S08 | Inner join → เฉพาะยาที่ resolve `rxcui` ได้ |
+| ลบซ้ำ | S08 | Unique บน `(safetyreportid, medicinal_product, reaction_meddrapt)` |
+| Quarantine ยา map ไม่ได้ | S07 | `rxcui IS NULL` หรือชื่อน่าสงสัย → แยกไฟล์ |
 
 ---
 
@@ -354,8 +354,8 @@ S10  แพ็กเกจตาราง Dimension:
 | ADR dimension: `adr_full_data` | 5,410,155 | 453,039 |
 | Reaction dimension: `standard_reaction_full_data` | 5,410,155 | 453,039 |
 | Drug dimension: `drug_full_data` | 4,944 | 2,881 |
-| S08 enriched drugs (main) | 85,267 | 22,437 |
-| S08 quarantine drugs | 6,221 | 1,747 |
+| S07 enriched drugs (main) | 85,267 | 22,437 |
+| S07 quarantine drugs | 6,221 | 1,747 |
 
 ### ค่าไม่ซ้ำในชุดข้อมูลผู้ใหญ่
 
@@ -500,10 +500,10 @@ S10  แพ็กเกจตาราง Dimension:
 
 2. **`ingredient` หลายส่วนประกอบ:** เมื่อฟิลด์ `ingredient` มีชื่อหลายตัวคั่นด้วย ` / ` สะท้อนชุดส่วนประกอบที่ดีที่สุดของชื่อ Brand นั้นจาก RxNorm ซึ่งผลิตโดย logic MIN-combined name ใน S09
 
-3. **`mapping_method` มีค่าหลากหลาย:** S08 ผลิต `mapping_method` มากกว่า 2,000 ค่าที่แตกต่างกัน (ส่วนใหญ่เป็น `approx:<ชื่อ>` และ `kegg:<id>:<inn>`) ผู้ใช้สามารถจัดกลุ่มตาม prefix (basename, ingredients, approx, kegg ฯลฯ) เพื่อแบ่งชั้นคุณภาพ mapping
+3. **`mapping_method` มีค่าหลากหลาย:** S07 ผลิต `mapping_method` มากกว่า 2,000 ค่าที่แตกต่างกัน (ส่วนใหญ่เป็น `approx:<ชื่อ>` และ `kegg:<id>:<inn>`) ผู้ใช้สามารถจัดกลุ่มตาม prefix (basename, ingredients, approx, kegg ฯลฯ) เพื่อแบ่งชั้นคุณภาพ mapping
 
-4. **ยาใน Quarantine:** ประมาณ 6,200 แถวผู้ใหญ่ และ 1,750 แถวเด็ก ถูกส่งไป quarantine ใน S08 (map RxNorm ไม่ได้ หรือระบุว่าเป็นชื่อ Placeholder) บันทึกไว้ที่ `data/staging/s08_enrich_drug_identifiers/quarantine/` สำหรับ review ภายหลัง ไม่รวมในไฟล์ส่งมอบ
+4. **ยาใน Quarantine:** ประมาณ 6,200 แถวผู้ใหญ่ และ 1,750 แถวเด็ก ถูกส่งไป quarantine ใน S07 (map RxNorm ไม่ได้ หรือระบุว่าเป็นชื่อ Placeholder) บันทึกไว้ที่ `data/staging/s07_enrich_drug_identifiers/quarantine/` สำหรับ review ภายหลัง ไม่รวมในไฟล์ส่งมอบ
 
 5. **ความครอบคลุม MedDRA:** ทุกแถวใน Fact table ถูกจับคู่กับ MedDRA PT (บังคับด้วย inner join ใน S09) มีเพียง 1,640 PT ที่ไม่ซ้ำใน cohort ผู้ใหญ่ และ 453,039 คู่ (รายงาน, PT) ที่ไม่ซ้ำ
 
-6. **Provenance ของ `ing_source`:** คอลัมน์ `ing_source` ใน staging S08 บอกว่าฟิลด์ `ingredients` ได้มาอย่างไร (`faers` = จาก FAERS active_substance, `llm` = LLM, `bracket` = วงเล็บ Fallback, `rxnav_*`/`rxnorm_enriched` = เติมจาก RxNorm path ใน S08) คอลัมน์นี้ไม่ได้ถ่ายทอดไปยังไฟล์เอาต์พุตสุดท้าย (S09/S10)
+6. **Provenance ของ `ing_source`:** คอลัมน์ `ing_source` ใน staging S07 บอกว่าฟิลด์ `ingredients` ได้มาอย่างไร (`faers` = จาก FAERS active_substance, `llm` = LLM, `bracket` = วงเล็บ Fallback, `rxnav_*`/`rxnorm_enriched` = เติมจาก RxNorm path ใน S08) คอลัมน์นี้ไม่ได้ถ่ายทอดไปยังไฟล์เอาต์พุตสุดท้าย (S09/S10)

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Stage S06 – Map ADRs to MedDRA hierarchies using Polars.
+"""Stage S05 – Map ADRs to MedDRA hierarchies using Polars.
 
 Updated to use CONCEPT_ANCESTOR for PT->SOC mapping (instead of full hierarchy via CONCEPT_RELATIONSHIP).
 Text matching uses Title Case instead of UPPERCASE for better compatibility with MedDRA standards.
@@ -50,7 +50,7 @@ def _load_concept_ancestor(ancestor_path: Path, pt_ids: list, soc_ids: list) -> 
     CONCEPT_ANCESTOR has 80M+ rows covering all vocabularies (SNOMED, RxNorm, ATC, MedDRA).
     We only need MedDRA PT->SOC relationships to avoid OOM.
     """
-    logger.info(f"[S06] Loading CONCEPT_ANCESTOR (filtering for {len(pt_ids)} PTs -> {len(soc_ids)} SOCs)...")
+    logger.info(f"[S05] Loading CONCEPT_ANCESTOR (filtering for {len(pt_ids)} PTs -> {len(soc_ids)} SOCs)...")
     
     return (
         pl.read_csv(
@@ -89,7 +89,7 @@ def _build_meddra_resources(concept_dir: Path) -> MedDRAResources:
     concept_path = concept_dir / "CONCEPT.csv"
     ancestor_path = concept_dir / "CONCEPT_ANCESTOR.csv"
 
-    logger.info("[S06] Loading CONCEPT.csv...")
+    logger.info("[S05] Loading CONCEPT.csv...")
     concept_df = _load_concepts(concept_path)
 
     pt_df = _concept_subset(concept_df, "PT", "pt")
@@ -103,7 +103,7 @@ def _build_meddra_resources(concept_dir: Path) -> MedDRAResources:
     concept_ancestor = _load_concept_ancestor(ancestor_path, pt_ids, soc_ids)
 
     logger.info(
-        f"[S06] Loaded {pt_df.height} PT concepts, {soc_df.height} SOC concepts, "
+        f"[S05] Loaded {pt_df.height} PT concepts, {soc_df.height} SOC concepts, "
         f"{concept_ancestor.height:,} PT->SOC relationships"
     )
 
@@ -153,7 +153,7 @@ def _map_cohort_adr(
     pt_lazy = resources.pt.lazy()
 
     # Step 1: Map ADR terms to PT using Title Case matching
-    logger.info(f"[S06][{cohort.upper()}] Step 1/3: Mapping ADR terms to MedDRA PT (Title Case)...")
+    logger.info(f"[S05][{cohort.upper()}] Step 1/3: Mapping ADR terms to MedDRA PT (Title Case)...")
     mapped_pt = (
         adr_lf
         .join(
@@ -167,7 +167,7 @@ def _map_cohort_adr(
     )
 
     # Step 2: Use CONCEPT_ANCESTOR to find PT->SOC relationships
-    logger.info(f"[S06][{cohort.upper()}] Step 2/3: Mapping PT to SOC using CONCEPT_ANCESTOR...")
+    logger.info(f"[S05][{cohort.upper()}] Step 2/3: Mapping PT to SOC using CONCEPT_ANCESTOR...")
     
     # Join with CONCEPT_ANCESTOR to get SOC ancestors
     mapped_with_ancestor = (
@@ -229,7 +229,7 @@ def _map_cohort_adr(
     cohort_dir = export_dir / cohort
     cohort_dir.mkdir(parents=True, exist_ok=True)
 
-    logger.info(f"[S06][{cohort.upper()}] Step 3/3: Filtering excluded SOC categories...")
+    logger.info(f"[S05][{cohort.upper()}] Step 3/3: Filtering excluded SOC categories...")
     
     # Filter out excluded SOC categories only (reaction pattern filtering removed)
     mapped_filtered = mapped_full.filter(
@@ -238,7 +238,7 @@ def _map_cohort_adr(
     )
     
     soc_filtered_count = mapped_full.height - mapped_filtered.height
-    logger.info(f"[S06][{cohort.upper()}]   → Removed {soc_filtered_count:,} rows with excluded SOCs")
+    logger.info(f"[S05][{cohort.upper()}]   → Removed {soc_filtered_count:,} rows with excluded SOCs")
     
     # Group by PT and aggregate SOCs into lists (1 PT can have multiple SOCs)
     # This matches the notebook logic: groupby().agg(list(set(x)))
@@ -264,7 +264,7 @@ def _map_cohort_adr(
     pt_soc_dict.write_parquet(dict_parquet_path, compression="zstd")
     
     logger.info(
-        f"[S06][{cohort.upper()}] Created dictionary: {pt_soc_dict.height:,} unique PTs "
+        f"[S05][{cohort.upper()}] Created dictionary: {pt_soc_dict.height:,} unique PTs "
         f"(excluded {len(EXCLUDED_SOCS)} SOC categories: {', '.join(EXCLUDED_SOCS)})"
     )
 
@@ -284,7 +284,7 @@ def _map_cohort_adr(
     unique_socs = pt_soc_dict["meddra_soc_names"].explode().n_unique()
     
     logger.success(
-        f"[S06][{cohort.upper()}] ✓ Completed: {mapped:,}/{adr_total:,} ADRs mapped ({coverage:.2f}%), "
+        f"[S05][{cohort.upper()}] ✓ Completed: {mapped:,}/{adr_total:,} ADRs mapped ({coverage:.2f}%), "
         f"{unique_pts:,} PTs, {unique_socs} SOCs"
     )
 
@@ -301,14 +301,14 @@ def run(ctx: PipelineContext) -> None:
     vocab_dir = _vocab_dir(ctx)
     resources = _build_meddra_resources(vocab_dir)
 
-    input_dir = stage_output_path(ctx, "s05_split_adr")
-    output_dir = stage_output_path(ctx, "s06_map_omop_meddra")
+    input_dir = stage_output_path(ctx, "s04_split_adr")
+    output_dir = stage_output_path(ctx, "s05_map_omop_meddra")
     output_dir.mkdir(parents=True, exist_ok=True)
 
     manifest_payload: Dict[str, Dict[str, object]] = {}
 
     logger.info("=" * 80)
-    logger.info(f"[S06] Starting MedDRA mapping for 2 cohorts (adult, pediatric)")
+    logger.info(f"[S05] Starting MedDRA mapping for 2 cohorts (adult, pediatric)")
     logger.info("=" * 80)
 
     for cohort in ("pediatric", "adult"):
@@ -330,7 +330,7 @@ def run(ctx: PipelineContext) -> None:
 
         dq_summary_markdown(
             ctx,
-            "s06_map_omop_meddra",
+            "s05_map_omop_meddra",
             cohort,
             stats["adr_rows"],
             stats["mapped_rows"],
@@ -350,7 +350,7 @@ def run(ctx: PipelineContext) -> None:
     # Summary table
     logger.info("")
     logger.info("=" * 80)
-    logger.info("[S06] MedDRA Mapping Summary")
+    logger.info("[S05] MedDRA Mapping Summary")
     logger.info("=" * 80)
     logger.info("")
     logger.info("┌────────────┬──────────────┬──────────────┬────────────┬─────────────┬──────────┐")
@@ -384,18 +384,18 @@ def run(ctx: PipelineContext) -> None:
     logger.info("")
 
     vocab_version = get_vocab_version_info(vocab_dir)
-    logger.info(f"[S06] Vocabulary version info: {vocab_version}")
+    logger.info(f"[S05] Vocabulary version info: {vocab_version}")
 
     write_manifest(
         ctx,
-        "s06_map_omop_meddra",
+        "s05_map_omop_meddra",
         {
-            "stage": "s06_map_omop_meddra",
+            "stage": "s05_map_omop_meddra",
             "vocabulary": vocab_version,
             "cohorts": manifest_payload,
         },
     )
-    logger.success("[S06] MedDRA mapping complete")
+    logger.success("[S05] MedDRA mapping complete")
 
 
 __all__ = ["run"]

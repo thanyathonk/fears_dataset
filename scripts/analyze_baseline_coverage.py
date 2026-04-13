@@ -31,7 +31,7 @@ def main():
 
     def top_unmapped(cohort: str, n: int = 30) -> pl.DataFrame:
         events_path = STAGING / f"s03_join_partition_age/{cohort}_events_full_data.parquet"
-        enriched_path = STAGING / f"s08_enrich_drug_identifiers/{cohort}_drugs_enriched_final_full_data.parquet"
+        enriched_path = STAGING / f"s07_enrich_drug_identifiers/{cohort}_drugs_enriched_final_full_data.parquet"
         enr = pl.read_parquet(enriched_path)
         unmapped_mp = enr.filter(
             pl.col("rxcui").is_null()
@@ -53,7 +53,7 @@ def main():
 
     for cohort in ["adult", "pediatric"]:
         events_path = STAGING / f"s03_join_partition_age/{cohort}_events_full_data.parquet"
-        enriched_path = STAGING / f"s08_enrich_drug_identifiers/{cohort}_drugs_enriched_final_full_data.parquet"
+        enriched_path = STAGING / f"s07_enrich_drug_identifiers/{cohort}_drugs_enriched_final_full_data.parquet"
         if not events_path.exists() or not enriched_path.exists():
             print(f"\n[{cohort}] Missing files — skip")
             continue

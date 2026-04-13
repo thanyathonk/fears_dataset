@@ -45,7 +45,7 @@ full_dataset/
 | 1 | S01 Fetch | `tmux` + `scripts/step1_s01_fetch.sh` |
 | 2 | S02 Format | `sbatch scripts/slurm_run_s02.sh` |
 | 3 | S03–S07 | `bash scripts/run_s03_s07.sh` |
-| 4 | S07b LLM | `sbatch scripts/step4_s07b_llm.sh` |
-| 5 | S08 Enrich | `tmux` + `scripts/step5_s08_enrich.sh` |
+| 4 | S06b LLM | `sbatch scripts/step4_s07b_llm.sh` |
+| 5 | S07 Enrich | `tmux` + `scripts/step5_s08_enrich.sh` |
 | 6 | S09–S10 | `bash scripts/run_s09_s10.sh` |
 

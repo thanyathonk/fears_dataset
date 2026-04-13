@@ -9,7 +9,7 @@
 #SBATCH --output=logs/slurm_s06b_%j.out
 #SBATCH --error=logs/slurm_s06b_%j.err
 
-# S06b — Map MedDRA full hierarchy (PT→HLT→HLGT→SOC)
+# S06b — LLM drug name decomposition (requires GPU)
 # Usage: sbatch scripts/slurm_stages/run_s06b.sh
 
 set -euo pipefail
@@ -21,11 +21,11 @@ conda activate "${CONDA_ENV:-fulldata}"
 export PYTHONUNBUFFERED=1
 
 echo "=========================================="
-echo "Stage: s06b_map_omop_meddra_full_hierarchy"
+echo "Stage: s06b_llm_clean"
 echo "Start: $(date)"
 echo "=========================================="
 
-python -m src.cli run-stage s06b_map_omop_meddra_full_hierarchy
+python -m src.cli run-stage s06b_llm_clean
 
 echo "=========================================="
 echo "Done:  $(date)"

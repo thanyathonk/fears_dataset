@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Stage S05 – Split ADR tables."""
+"""Stage S04 – Split ADR tables."""
 
 from pathlib import Path
 from typing import Dict
@@ -35,7 +35,7 @@ def run(ctx: PipelineContext) -> None:
     # S05 now reads directly from S03 (skip S04 - cleaning moved to S03)
     # ─────────────────────────────────────────────────────────────────────────
     source_dir = stage_output_path(ctx, "s03_join_partition_age")
-    output_dir = stage_output_path(ctx, "s05_split_adr")
+    output_dir = stage_output_path(ctx, "s04_split_adr")
     output_dir.mkdir(parents=True, exist_ok=True)
 
     manifest_payload: Dict[str, Dict[str, object]] = {}
@@ -69,7 +69,7 @@ def run(ctx: PipelineContext) -> None:
 
         dq_summary_markdown(
             ctx,
-            "s05_split_adr",
+            "s04_split_adr",
             cohort,
             input_rows,
             adr_rows,
@@ -84,8 +84,8 @@ def run(ctx: PipelineContext) -> None:
         }
 
         logger.info(
-            f"[S05] Cohort {cohort} ADR rows={adr_rows:,} unique_terms={unique_terms:,}"
+            f"[S04] Cohort {cohort} ADR rows={adr_rows:,} unique_terms={unique_terms:,}"
         )
 
-    write_manifest(ctx, "s05_split_adr", {"stage": "s05_split_adr", "cohorts": manifest_payload})
-    logger.success("[S05] ADR extraction complete")
+    write_manifest(ctx, "s04_split_adr", {"stage": "s04_split_adr", "cohorts": manifest_payload})
+    logger.success("[S04] ADR extraction complete")

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Stage S08 Local – Enrich drug identifiers using Direct NCBI API Key Connection.
+"""Stage S07 Local – Enrich drug identifiers using Direct NCBI API Key Connection.
 
 Logic (v8):
 1. RxNav API exact match on basename
@@ -63,7 +63,7 @@ def _coalesce_ing_source_with_rxnorm_enrichment(df: pl.DataFrame) -> pl.DataFram
     - ``ing_source`` values ``faers`` | ``llm`` | ``bracket`` are produced in the
       S07 LLM decomposition step (see ``scripts/s07_openai_run.py``): they describe
       where the *structured* ``ingredients`` list came from. The in-repo
-      ``s07b_llm_clean`` stage does not emit this column unless merged from that
+      ``s06b_llm_clean`` stage does not emit this column unless merged from that
       script or a compatible export.
     - S08 does **not** replace those values; it only adds RxNorm fields
       (``rxcui``, ``lookup_hit``, ``rxnorm_ingredients``, …).
@@ -123,7 +123,7 @@ def _split_main_and_quarantine(
     *,
     quarantine_suspicious: bool,
 ) -> tuple[pl.DataFrame, pl.DataFrame]:
-    """Return (main_enriched, quarantine) with ``s08_quarantine_reason`` on quarantine rows."""
+    """Return (main_enriched, quarantine) with ``s07_quarantine_reason`` on quarantine rows."""
     enriched_df = enriched_df.with_columns(_suspicious_medicinal_product_expr().alias("_s08_suspicious"))
     use_susp = pl.lit(quarantine_suspicious)
     reason = (
@@ -135,12 +135,12 @@ def _split_main_and_quarantine(
         .then(pl.lit("suspicious_name"))
         .otherwise(pl.lit("keep"))
     )
-    enriched_df = enriched_df.with_columns(reason.alias("s08_quarantine_reason"))
+    enriched_df = enriched_df.with_columns(reason.alias("s07_quarantine_reason"))
 
-    main_df = enriched_df.filter(pl.col("s08_quarantine_reason") == "keep").drop(
-        "_s08_suspicious", "s08_quarantine_reason"
+    main_df = enriched_df.filter(pl.col("s07_quarantine_reason") == "keep").drop(
+        "_s08_suspicious", "s07_quarantine_reason"
     )
-    quarantine_df = enriched_df.filter(pl.col("s08_quarantine_reason") != "keep").drop("_s08_suspicious")
+    quarantine_df = enriched_df.filter(pl.col("s07_quarantine_reason") != "keep").drop("_s08_suspicious")
     return main_df, quarantine_df
 
 
@@ -848,11 +848,11 @@ async def _enrich_names_direct(
 
 
 def run(ctx: PipelineContext) -> None:
-    """Run Stage S08 Local: Drug identifier enrichment using Direct NCBI API."""
+    """Run Stage S07 Local: Drug identifier enrichment using Direct NCBI API."""
 
-    s07b_dir = stage_output_path(ctx, "s07b_llm_clean")
-    s07_dir = stage_output_path(ctx, "s07_split_drug")
-    output_dir = stage_output_path(ctx, "s08_enrich_drug_identifiers")
+    s07b_dir = stage_output_path(ctx, "s06b_llm_clean")
+    s07_dir = stage_output_path(ctx, "s06_split_drug")
+    output_dir = stage_output_path(ctx, "s07_enrich_drug_identifiers")
     output_dir.mkdir(parents=True, exist_ok=True)
 
     manifest_payload: Dict[str, Dict[str, object]] = {}
@@ -1110,7 +1110,7 @@ def run(ctx: PipelineContext) -> None:
         output_file = output_dir / f"{cohort}_drugs_enriched.parquet"
         if main_df.height == 0:
             raise ValueError(
-                f"[S08] {cohort}: no rows left after quarantine split — "
+                f"[S07] {cohort}: no rows left after quarantine split — "
                 "relax heuristics or set S08_QUARANTINE_ONLY_UNMAPPED=1."
             )
 
@@ -1121,7 +1121,7 @@ def run(ctx: PipelineContext) -> None:
             quarantine_df.write_parquet(quarantine_file)
             logger.warning(
                 f"[Local] Quarantine {quarantine_df.height:,} rows → {quarantine_file} "
-                f"(reasons: s08_quarantine_reason; suspicious_filter={'on' if quarantine_suspicious else 'off'})"
+                f"(reasons: s07_quarantine_reason; suspicious_filter={'on' if quarantine_suspicious else 'off'})"
             )
         else:
             logger.info("[Local] Quarantine is empty (no rows dropped).")
@@ -1145,7 +1145,7 @@ def run(ctx: PipelineContext) -> None:
 
         logger.info("")
         logger.info("┌─────────────────────────────────────────────────────────┐")
-        logger.info(f"│  [S08] {cohort.upper()} Cohort Summary" + " " * (33 - len(cohort)) + "│")
+        logger.info(f"│  [S07] {cohort.upper()} Cohort Summary" + " " * (33 - len(cohort)) + "│")
         logger.info("├─────────────────────────────────────────────────────────┤")
         logger.info(f"│  Total unique drugs      : {total_drugs:>10,}                   │")
         logger.info(f"│  RxNav (basename)        : {rxnav_exact:>10,}  ({rxnav_exact/total_drugs*100 if total_drugs else 0:5.1f}%)          │")
@@ -1205,7 +1205,7 @@ def run(ctx: PipelineContext) -> None:
 
     logger.info("")
     logger.info("╔═════════════════════════════════════════════════════════╗")
-    logger.info("║           [S08] OVERALL ENRICHMENT SUMMARY             ║")
+    logger.info("║           [S07] OVERALL ENRICHMENT SUMMARY             ║")
     logger.info("╠═════════════════════════════════════════════════════════╣")
     for cname, stats in manifest_payload.items():
         logger.info(
@@ -1233,9 +1233,9 @@ def run(ctx: PipelineContext) -> None:
 
     write_manifest(
         ctx,
-        "s08_enrich_drug_identifiers_local",
+        "s07_enrich_drug_identifiers_local",
         {
-            "stage": "s08_enrich_drug_identifiers_local",
+            "stage": "s07_enrich_drug_identifiers_local",
             "version": "8.0",
             "connection_method": (
                 "rxnav_api_key + local_cid_offline + suffix_strip"

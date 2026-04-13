@@ -1,4 +1,4 @@
-# Drug Name Normalization and Identifier Enrichment: Methods for Stages S07b and S08
+# Drug Name Normalization and Identifier Enrichment: Methods for Stages S06b and S08
 
 ## Abstract
 
@@ -20,11 +20,11 @@ The core challenge is to extract a canonical **basename** (the primary drug iden
 
 ---
 
-## 2. Stage S07b — LLM-Based Drug Name Decomposition
+## 2. Stage S06b — LLM-Based Drug Name Decomposition
 
 ### 2.1 Overview
 
-Stage S07b transforms raw `medicinal_product` strings into structured fields using a three-phase pipeline: (1) rule-based regex preprocessing, (2) large language model (LLM) inference, and (3) rule-based post-processing. The output for each record is a normalized row containing: `basename`, `ingredients` (list), `salt`, `strength`, `dosage_form`, `qualifier`, and `qualifier_type`.
+Stage S06b transforms raw `medicinal_product` strings into structured fields using a three-phase pipeline: (1) rule-based regex preprocessing, (2) large language model (LLM) inference, and (3) rule-based post-processing. The output for each record is a normalized row containing: `basename`, `ingredients` (list), `salt`, `strength`, `dosage_form`, `qualifier`, and `qualifier_type`.
 
 ### 2.2 Phase 1: Regex Preprocessing
 
@@ -83,11 +83,11 @@ After LLM inference, the raw JSON output is validated and cleaned:
 
 ---
 
-## 3. Stage S08 — Multi-Tier Drug Identifier Enrichment
+## 3. Stage S07 — Multi-Tier Drug Identifier Enrichment
 
 ### 3.1 Overview
 
-Stage S08 maps each unique `basename` to a **RxCUI** via a cascading seven-step lookup strategy. Steps are applied in order; once a RxCUI is found, the remaining steps are skipped. The final step (Step 8) fetches ingredient information for any resolved RxCUI. The enrichment is implemented as an asynchronous pipeline using `asyncio` and `aiohttp` to maximize throughput while respecting API rate limits.
+Stage S07 maps each unique `basename` to a **RxCUI** via a cascading seven-step lookup strategy. Steps are applied in order; once a RxCUI is found, the remaining steps are skipped. The final step (Step 8) fetches ingredient information for any resolved RxCUI. The enrichment is implemented as an asynchronous pipeline using `asyncio` and `aiohttp` to maximize throughput while respecting API rate limits.
 
 ### 3.2 Data Sources
 
@@ -131,7 +131,7 @@ This is the most direct and highest-precision step. A valid numeric `idType=RXNO
 
 #### Step 2: RxNav Exact Match on Ingredients
 
-If Step 1 fails (common for brand names with no direct RxNorm entry), each ingredient extracted by S07b is individually queried against RxNav. The first successful match is used. This step exploits the S07b LLM output to find the generic drug when only the brand name was submitted.
+If Step 1 fails (common for brand names with no direct RxNorm entry), each ingredient extracted by S06b is individually queried against RxNav. The first successful match is used. This step exploits the S06b LLM output to find the generic drug when only the brand name was submitted.
 
 > **Example:** `"HUMULINE"` (brand) → ingredients `["INSULIN", "HUMAN"]` → `"INSULIN HUMAN"` → RxCUI found.
 
@@ -260,7 +260,7 @@ The thresholds for Step 6 (`score ≥ 8.0`, `similarity ≥ 0.70`, first-letter 
 
 ### 4.4 KEGG False Positive Analysis
 
-After the initial S08 run with KEGG lookup enabled (before the minimum-length guard was in place), manual inspection found:
+After the initial S07 run with KEGG lookup enabled (before the minimum-length guard was in place), manual inspection found:
 
 - **Pediatric cohort:** 62 basenames of length < 5 received KEGG hits. Example: `"AN"` → KEGG D01234 (nadide). These were set to `not_found` by post-processing.
 - **Adult cohort:** 1,310 such false-positive KEGG hits were identified and corrected similarly.
@@ -299,7 +299,7 @@ The minimum length guard (`len(basename) >= 5`) was then added to the code and v
 
 ### 5.2 Observations
 
-- **Ingredient-based lookup (Step 2) dominates** both cohorts (~47–49%), reflecting the prevalence of brand names in FAERS that lack direct RxNorm entries. The S07b LLM extraction of explicit ingredient tokens is therefore the single most important preprocessing step.
+- **Ingredient-based lookup (Step 2) dominates** both cohorts (~47–49%), reflecting the prevalence of brand names in FAERS that lack direct RxNorm entries. The S06b LLM extraction of explicit ingredient tokens is therefore the single most important preprocessing step.
 - **Approximate matching (Step 6)** contributed meaningfully: 6.5% in pediatrics and 9.7% in adults, demonstrating that typographic errors are a substantial source of failures. The adult cohort's higher approximate-match rate aligns with its greater diversity of international reporters.
 - **KEGG non-US lookup (Step 7)** contributed modestly (0.2–0.5%) but is qualitatively important for European and Japanese clinical trial data.
 - The **adult cohort's lower overall coverage (70.6% vs. 80.3%)** is primarily attributable to a higher proportion of multi-word complex formulations, hospital compounding codes, and procedure names misreported as drug names in FAERS.
@@ -311,7 +311,7 @@ The minimum length guard (`len(basename) >= 5`) was then added to the code and v
 | Column | Description |
 |---|---|
 | `medicinal_product` | Original raw drug name (unchanged) |
-| `basename` | Normalized primary drug name from S07b |
+| `basename` | Normalized primary drug name from S06b |
 | `ingredients` | Semicolon-separated ingredient string |
 | `rxcui` | RxNorm Concept Unique Identifier (null if not found) |
 | `lookup_hit` | Which step resolved the RxCUI (e.g., `"basename"`, `"ingredients"`, `"approx:FLUCONAZOLE"`, `"kegg:D01234:foscarnet"`, `"not_found"`) |
@@ -319,4 +319,4 @@ The minimum length guard (`len(basename) >= 5`) was then added to the code and v
 
 ---
 
-*Pipeline version: S07b (Qwen 2.5-32B, batch inference) · S08 v8.0 (7-step cascade + ingredient fetch)*
+*Pipeline version: S06b (Qwen 2.5-32B, batch inference) · S07 v8.0 (7-step cascade + ingredient fetch)*

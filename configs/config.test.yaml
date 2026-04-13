@@ -54,11 +54,11 @@ stages:
   s02_entity_format: false       # Skip — use pre-existing sample data
   s02_openfda_high_memory: false
   s03_join_partition_age: true
-  s05_split_adr: true
-  s06_map_omop_meddra: true
-  s06b_map_omop_meddra_full_hierarchy: true
-  s07_split_drug: true
-  s07b_llm_clean: false          # Skip — requires GPU/LLM model
-  s08_enrich_drug_identifiers: true
-  s09_finalize_merge_and_report: true
-  s10_package_deliverables: true
+  s04_split_adr: true
+  s05_map_omop_meddra: true
+  s05b_map_omop_meddra_full_hierarchy: true
+  s06_split_drug: true
+  s06b_llm_clean: false          # Skip — requires GPU/LLM model
+  s07_enrich_drug_identifiers: true
+  s08_finalize_merge_and_report: true
+  s09_package_deliverables: true

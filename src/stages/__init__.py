@@ -13,14 +13,14 @@ _STAGE_MODULES: Dict[str, str] = {
     "s01_fetch_openfda": "src.stages.s01_fetch_openfda",
     "s02_entity_format": "src.stages.s02_entity_format_stream",
     "s03_join_partition_age": "src.stages.s03_join_partition_age",
-    "s05_split_adr": "src.stages.s05_split_adr",
-    "s06_map_omop_meddra": "src.stages.s06_map_omop_meddra",
-    "s06b_map_omop_meddra_full_hierarchy": "src.stages.s06b_map_omop_meddra_full_hierarchy",
-    "s07_split_drug": "src.stages.s07_split_drug",
-    "s07b_llm_clean": "src.stages.s07b_llm_clean",
-    "s08_enrich_drug_identifiers": "src.stages.s08_enrich_drug_identifiers_local",
-    "s09_finalize_merge_and_report": "src.stages.s09_finalize_merge_and_report",
-    "s10_package_deliverables": "src.stages.s10_package_deliverables",
+    "s04_split_adr": "src.stages.s04_split_adr",
+    "s05_map_omop_meddra": "src.stages.s05_map_omop_meddra",
+    "s05b_map_omop_meddra_full_hierarchy": "src.stages.s05b_map_omop_meddra_full_hierarchy",
+    "s06_split_drug": "src.stages.s06_split_drug",
+    "s06b_llm_clean": "src.stages.s06b_llm_clean",
+    "s07_enrich_drug_identifiers": "src.stages.s07_enrich_drug_identifiers_local",
+    "s08_finalize_merge_and_report": "src.stages.s08_finalize_merge_and_report",
+    "s09_package_deliverables": "src.stages.s09_package_deliverables",
 }
 
 ORDERED_STAGES: List[str] = list(_STAGE_MODULES.keys())

@@ -74,13 +74,13 @@ class StageToggles(BaseModel):
     s02_entity_format: bool = True
     s02_openfda_high_memory: bool = False  # True when RAM >= 80GB for faster S02 openfda
     s03_join_partition_age: bool = True
-    s05_split_adr: bool = True
-    s06_map_omop_meddra: bool = True
-    s06b_map_omop_meddra_full_hierarchy: bool = True
-    s07_split_drug: bool = True
-    s08_enrich_drug_identifiers: bool = True
-    s09_finalize_merge_and_report: bool = True
-    s10_package_deliverables: bool = True
+    s04_split_adr: bool = True
+    s05_map_omop_meddra: bool = True
+    s05b_map_omop_meddra_full_hierarchy: bool = True
+    s06_split_drug: bool = True
+    s07_enrich_drug_identifiers: bool = True
+    s08_finalize_merge_and_report: bool = True
+    s09_package_deliverables: bool = True
 
 
 class PathsConfig(BaseModel):

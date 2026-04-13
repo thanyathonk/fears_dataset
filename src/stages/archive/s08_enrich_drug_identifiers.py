@@ -112,19 +112,19 @@ class PubChemRateLimiter:
 
         if 'BLACK' in throttling_control:
             self.current_delay = 2.0  # Reduced delay (proxy can rotate IP)
-            logger.warning("[S08] PubChem BLACK: Server heavily overloaded, setting delay to 2s")
+            logger.warning("[S07] PubChem BLACK: Server heavily overloaded, setting delay to 2s")
         elif 'RED' in throttling_control:
             self.current_delay = 1.0  # Reduced delay (proxy can rotate IP)
-            logger.warning("[S08] PubChem RED: High load, setting delay to 1s")
+            logger.warning("[S07] PubChem RED: High load, setting delay to 1s")
         elif 'YELLOW' in throttling_control:
             self.current_delay = 0.5  # Moderate throttling
-            logger.info("[S08] PubChem YELLOW: Moderate load, setting delay to 0.5s")
+            logger.info("[S07] PubChem YELLOW: Moderate load, setting delay to 0.5s")
         elif 'GREEN' in throttling_control:
             self.current_delay = self.base_delay  # Normal operation
-            logger.debug("[S08] PubChem GREEN: Normal operation, using base delay")
+            logger.debug("[S07] PubChem GREEN: Normal operation, using base delay")
         else:
             # If no header, keep current delay but log
-            logger.debug(f"[S08] PubChem header not found, keeping current delay: {self.current_delay}s")
+            logger.debug(f"[S07] PubChem header not found, keeping current delay: {self.current_delay}s")
 
     async def wait(self):
         """Wait for the current delay period."""
@@ -186,12 +186,12 @@ async def _lookup_pubchem_title(
                 elif resp.status in (503, 429):  # Server busy or rate limited
                     # With proxy and Connection: close, retry immediately (fresh IP each time)
                     if attempt < max_retries - 1:
-                        logger.debug(f"[S08] ⚠️  RATE LIMIT: PubChem {resp.status} for '{name}' (attempt {attempt + 1}/{max_retries}), retrying with fresh IP")
+                        logger.debug(f"[S07] ⚠️  RATE LIMIT: PubChem {resp.status} for '{name}' (attempt {attempt + 1}/{max_retries}), retrying with fresh IP")
                     else:
-                        logger.warning(f"[S08] ⚠️  RATE LIMIT: PubChem {resp.status} for '{name}' failed after {max_retries} retries")
+                        logger.warning(f"[S07] ⚠️  RATE LIMIT: PubChem {resp.status} for '{name}' failed after {max_retries} retries")
                     continue
                 elif resp.status >= 500:  # Other server errors
-                    logger.warning("[S08] PubChem server error %d for %s", resp.status, name)
+                    logger.warning("[S07] PubChem server error %d for %s", resp.status, name)
                     return None
 
                 resp.raise_for_status()
@@ -223,19 +223,19 @@ async def _lookup_pubchem_title(
         except (aiohttp.ClientProxyConnectionError, aiohttp.ClientConnectorError,
                 aiohttp.ClientError, asyncio.TimeoutError, Exception) as e:
             consecutive_proxy_errors += 1
-            logger.warning("[S08] PubChem error #%d for '%s': %s", consecutive_proxy_errors, name, e)
+            logger.warning("[S07] PubChem error #%d for '%s': %s", consecutive_proxy_errors, name, e)
 
             # Circuit Breaker: Too many consecutive errors = proxy dead/quota exceeded
             if consecutive_proxy_errors >= MAX_CONSECUTIVE_ERRORS:
                 PROXY_DEAD = True
-                logger.error("[S08] 🚨 CIRCUIT BREAKER: %d consecutive proxy errors! Proxy quota exceeded or dead. Switching to RxNav ONLY mode.", MAX_CONSECUTIVE_ERRORS)
+                logger.error("[S07] 🚨 CIRCUIT BREAKER: %d consecutive proxy errors! Proxy quota exceeded or dead. Switching to RxNav ONLY mode.", MAX_CONSECUTIVE_ERRORS)
                 return None
 
             return None
 
         # No additional sleep needed - rate limiter handles timing
 
-    logger.warning("[S08] PubChem failed after %d retries for: %s", max_retries, name)
+    logger.warning("[S07] PubChem failed after %d retries for: %s", max_retries, name)
     return None
 
 
@@ -310,7 +310,7 @@ async def _enrich_names(
                     # Log circuit breaker status for monitoring
                     global PROXY_DEAD, consecutive_proxy_errors
                     if PROXY_DEAD:
-                        logger.info("[S08] Circuit breaker active: Proxy dead, RxNav only mode")
+                        logger.info("[S07] Circuit breaker active: Proxy dead, RxNav only mode")
 
                     # Step 1: RxNav Exact Match (Direct Connection - Conservative Semaphore)
                     async with rxnav_sem:
@@ -333,9 +333,9 @@ async def _enrich_names(
                                 if candidates:
                 rxcui = candidates[0]
                                     source = "pubchem_fallback"
-                                    logger.info(f"[S08] ✓ PubChem fallback: '{name}' → '{pubchem_title}' → RxCUI {rxcui}")
+                                    logger.info(f"[S07] ✓ PubChem fallback: '{name}' → '{pubchem_title}' → RxCUI {rxcui}")
                                 else:
-                                    logger.warning(f"[S08] PubChem fallback failed: '{pubchem_title}' not found in RxNav")
+                                    logger.warning(f"[S07] PubChem fallback failed: '{pubchem_title}' not found in RxNav")
                                 # No Title found - continue with not_found
 
                         # Step 3: Get ingredient metadata if we have valid RxCUI
@@ -362,7 +362,7 @@ async def _enrich_names(
                                     source=source,
                                 )
                             except Exception as e:
-                                logger.warning("[S08] Failed to get ingredients for RxCUI %s (%s): %s", rxcui, name, e)
+                                logger.warning("[S07] Failed to get ingredients for RxCUI %s (%s): %s", rxcui, name, e)
                                 results[name] = EnrichmentResult(
                                     rxcui=rxcui,
                                     rxcui_tty=None,
@@ -380,7 +380,7 @@ async def _enrich_names(
                             )
 
                 except Exception as exc:
-                        logger.warning("[S08] Enrichment failed for %s: %s", name, exc)
+                        logger.warning("[S07] Enrichment failed for %s: %s", name, exc)
                         results[name] = EnrichmentResult(
                             rxcui=None,
                             rxcui_tty=None,
@@ -404,8 +404,8 @@ async def _enrich_names(
 
 def run(ctx: PipelineContext) -> None:
     """Run Stage S08: Drug identifier enrichment."""
-    source_dir = stage_output_path(ctx, "s07b_llm_clean")
-    output_dir = stage_output_path(ctx, "s08_enrich_drug_identifiers")
+    source_dir = stage_output_path(ctx, "s06b_llm_clean")
+    output_dir = stage_output_path(ctx, "s07_enrich_drug_identifiers")
     output_dir.mkdir(parents=True, exist_ok=True)
 
     manifest_payload: Dict[str, Dict[str, object]] = {}
@@ -414,7 +414,7 @@ def run(ctx: PipelineContext) -> None:
     # Check force flag
     force_enrichment = os.environ.get("FORCE_ENRICHMENT") == "1"
     if force_enrichment:
-        logger.info("[S08] FORCE mode: Skipping cache loading, will re-run all enrichment")
+        logger.info("[S07] FORCE mode: Skipping cache loading, will re-run all enrichment")
         global_cache.clear()  # Clear any existing cache
     else:
         # Preload cache from previous enriched outputs if present
@@ -435,7 +435,7 @@ def run(ctx: PipelineContext) -> None:
                     has_new_schema = all(col in cached_df.columns for col in ["rxcui", "rxcui_tty", "ingredients", "ingredient_count"])
 
                     if clean_col and has_new_schema and cached_df.get_column(clean_col).dtype == pl.Utf8:
-                        logger.info("[S08] Loading cached enrichment from %s (new schema)", existing)
+                        logger.info("[S07] Loading cached enrichment from %s (new schema)", existing)
 
                     tmp = cached_df.select(
                             pl.col(clean_col).cast(pl.Utf8).alias("name"),
@@ -455,20 +455,20 @@ def run(ctx: PipelineContext) -> None:
                                     ingredient_count=row["ingredient_count"] or 0,
                                     source="cached",
                                 )
-                        logger.info("[S08] Loaded %d cached entries from %s", len(global_cache), cohort)
+                        logger.info("[S07] Loaded %d cached entries from %s", len(global_cache), cohort)
                 else:
-                        logger.info("[S08] Skip cache warm: incompatible schema in %s", existing)
+                        logger.info("[S07] Skip cache warm: incompatible schema in %s", existing)
             except Exception as e:
-                    logger.info("[S08] Skip cache warm: error reading %s (%s)", existing, e)
+                    logger.info("[S07] Skip cache warm: error reading %s (%s)", existing, e)
 
     # Process each cohort (support selective cohort via environment variable)
     target_cohort = os.environ.get("TARGET_COHORT")
     if target_cohort:
         cohorts_to_process = (target_cohort,)
-        logger.info("[S08] Processing selected cohort: %s", target_cohort)
+        logger.info("[S07] Processing selected cohort: %s", target_cohort)
     else:
         cohorts_to_process = ("pediatric", "adult")
-        logger.info("[S08] Processing all cohorts: pediatric, adult")
+        logger.info("[S07] Processing all cohorts: pediatric, adult")
 
     for cohort in cohorts_to_process:
         source = source_dir / f"{cohort}_drugs_clean.parquet"
@@ -512,14 +512,14 @@ def run(ctx: PipelineContext) -> None:
         sorted_names_df = name_frequencies.sort("frequency", descending=True)
         unique_names = sorted_names_df["name"].to_list()
 
-        logger.info("[S08] Cohort %s: %d unique drug names to process (sorted by frequency desc)", cohort, len(unique_names))
-        logger.info("[S08] Top 5 most frequent drugs: %s",
+        logger.info("[S07] Cohort %s: %d unique drug names to process (sorted by frequency desc)", cohort, len(unique_names))
+        logger.info("[S07] Top 5 most frequent drugs: %s",
                    [f"{name}({freq})" for name, freq in zip(sorted_names_df["name"].head(5), sorted_names_df["frequency"].head(5))])
 
         # Find names not in cache
         missing = [name for name in unique_names if name not in global_cache]
         if missing:
-            logger.info("[S08] Cohort %s: %d names need enrichment (cache hits: %d)", 
+            logger.info("[S07] Cohort %s: %d names need enrichment (cache hits: %d)", 
                        cohort, len(missing), len(unique_names) - len(missing))
             asyncio.run(_enrich_names(ctx, missing, global_cache, label=cohort))
 
@@ -624,36 +624,36 @@ def run(ctx: PipelineContext) -> None:
         pubchem_fallback = sources_stats.get("pubchem_fallback", 0)
         not_found = sources_stats.get("not_found", 0)
 
-        logger.info("[S08] Cohort %s: ✅ COVERAGE %.2f%% (%d/%d drugs enriched)",
+        logger.info("[S07] Cohort %s: ✅ COVERAGE %.2f%% (%d/%d drugs enriched)",
                    cohort, coverage, mapped_rows, len(unique_names))
-        logger.info("[S08] Cohort %s: 📊 RxNav direct: %d, PubChem fallback: %d, Not found: %d",
+        logger.info("[S07] Cohort %s: 📊 RxNav direct: %d, PubChem fallback: %d, Not found: %d",
                    cohort, rxnav_exact, pubchem_fallback, not_found)
 
         # Quality assessment
         if coverage >= 90:
-            logger.success("[S08] Cohort %s: 🌟 EXCELLENT coverage (%.1f%%) - Pipeline highly successful!", cohort, coverage)
+            logger.success("[S07] Cohort %s: 🌟 EXCELLENT coverage (%.1f%%) - Pipeline highly successful!", cohort, coverage)
         elif coverage >= 80:
-            logger.success("[S08] Cohort %s: ✅ GOOD coverage (%.1f%%) - Ready for production!", cohort, coverage)
+            logger.success("[S07] Cohort %s: ✅ GOOD coverage (%.1f%%) - Ready for production!", cohort, coverage)
         elif coverage >= 70:
-            logger.warning("[S08] Cohort %s: ⚠️  MODERATE coverage (%.1f%%) - Acceptable for research", cohort, coverage)
+            logger.warning("[S07] Cohort %s: ⚠️  MODERATE coverage (%.1f%%) - Acceptable for research", cohort, coverage)
         else:
-            logger.error("[S08] Cohort %s: ❌ LOW coverage (%.1f%%) - May need data quality improvements", cohort, coverage)
+            logger.error("[S07] Cohort %s: ❌ LOW coverage (%.1f%%) - May need data quality improvements", cohort, coverage)
 
     # Overall statistics across all cohorts
     total_drugs_all = sum(stats["unique_names"] for stats in manifest_payload.values())
     total_enriched_all = sum(stats["mapped_rows"] for stats in manifest_payload.values())
     overall_coverage = total_enriched_all / total_drugs_all * 100 if total_drugs_all > 0 else 0
 
-    logger.info("[S08] 📈 OVERALL SUMMARY:")
-    logger.info("[S08] Total unique drugs processed: %d", total_drugs_all)
-    logger.info("[S08] Total drugs enriched: %d", total_enriched_all)
-    logger.info("[S08] Overall coverage: %.2f%%", overall_coverage)
+    logger.info("[S07] 📈 OVERALL SUMMARY:")
+    logger.info("[S07] Total unique drugs processed: %d", total_drugs_all)
+    logger.info("[S07] Total drugs enriched: %d", total_enriched_all)
+    logger.info("[S07] Overall coverage: %.2f%%", overall_coverage)
 
     write_manifest(
         ctx,
-        "s08_enrich_drug_identifiers",
+        "s07_enrich_drug_identifiers",
         {
-            "stage": "s08_enrich_drug_identifiers",
+            "stage": "s07_enrich_drug_identifiers",
             "version": "3.0",
             "search_logic": "smart_bandwidth_optimization_with_circuit_breaker",
             "features": [
@@ -676,6 +676,6 @@ def run(ctx: PipelineContext) -> None:
     )
 
     if overall_coverage >= 80:
-        logger.success("[S08] 🎉 PIPELINE SUCCESS: %.1f%% overall coverage - Production ready!", overall_coverage)
+        logger.success("[S07] 🎉 PIPELINE SUCCESS: %.1f%% overall coverage - Production ready!", overall_coverage)
     else:
-        logger.warning("[S08] ⚠️  PIPELINE COMPLETE: %.1f%% overall coverage - Monitor and improve data quality", overall_coverage)
+        logger.warning("[S07] ⚠️  PIPELINE COMPLETE: %.1f%% overall coverage - Monitor and improve data quality", overall_coverage)

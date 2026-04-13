@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-"""Stage S07b – Read S07 drug parquet, run in-process LLM decomposition, merge context, write clean parquet.
+"""Stage S06b – Read S07 drug parquet, run in-process LLM decomposition, merge context, write clean parquet.
 
-Reads ``data/staging/s07_split_drug/{cohort}_drugs_full_data.parquet``, runs Qwen chat +
+Reads ``data/staging/s06_split_drug/{cohort}_drugs_full_data.parquet``, runs Qwen chat +
 JSON extraction, left-joins S07 list columns, writes
-``data/staging/s07b_llm_clean/{cohort}_drugs_clean_full_data.parquet``.
+``data/staging/s06b_llm_clean/{cohort}_drugs_clean_full_data.parquet``.
 
 **Text selection per row (norm → regex → LLM)**
 
@@ -364,7 +364,7 @@ def _load_model_and_tokenizer() -> Tuple[Any, Any]:
     cache_raw = os.environ.get("LLM_CACHE_DIR") or os.environ.get("HF_CACHE") or ""
     cache_dir = cache_raw.strip() or None
 
-    logger.info("[S07b] Loading model %s (device=%s)", model_name, device)
+    logger.info("[S06b] Loading model %s (device=%s)", model_name, device)
     tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir=cache_dir)
 
     if device == "cuda":
@@ -384,7 +384,7 @@ def _load_model_and_tokenizer() -> Tuple[Any, Any]:
 
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "left"
-    logger.info("[S07b] Model loaded")
+    logger.info("[S06b] Model loaded")
     return model, tokenizer
 
 
@@ -468,7 +468,7 @@ def _validate_llm_columns(df: pl.DataFrame, label: str) -> None:
     missing_llm = [c for c in _LLM_REQUIRED if c not in df.columns]
     if missing_llm:
         raise ValueError(
-            f"[S07b] LLM output missing columns {missing_llm} ({label}). Found: {df.columns}"
+            f"[S06b] LLM output missing columns {missing_llm} ({label}). Found: {df.columns}"
         )
 
 
@@ -479,7 +479,7 @@ def _merge_s07_context(
 ) -> pl.DataFrame:
     if not s07_path.exists():
         logger.warning(
-            f"[S07b] {cohort}: S07 full data not found at {s07_path} — "
+            f"[S06b] {cohort}: S07 full data not found at {s07_path} — "
             "context columns may be missing."
         )
         return llm_df
@@ -498,8 +498,8 @@ def run(ctx: PipelineContext) -> None:
     warnings.filterwarnings("ignore")
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-    input_dir = stage_output_path(ctx, "s07_split_drug")
-    output_dir = stage_output_path(ctx, "s07b_llm_clean")
+    input_dir = stage_output_path(ctx, "s06_split_drug")
+    output_dir = stage_output_path(ctx, "s06b_llm_clean")
     output_dir.mkdir(parents=True, exist_ok=True)
 
     batch_size = int(os.environ.get("LLM_BATCH_SIZE", "64"))
@@ -508,24 +508,24 @@ def run(ctx: PipelineContext) -> None:
         model, tokenizer = _load_model_and_tokenizer()
     except ImportError as e:
         raise ImportError(
-            "[S07b] torch and transformers are required for this stage. "
+            "[S06b] torch and transformers are required for this stage. "
             "Install on the GPU worker, e.g. pip install torch transformers accelerate."
         ) from e
 
     manifest_payload: Dict[str, Dict[str, object]] = {}
 
     for cohort in tqdm(("pediatric", "adult"), desc="S07b cohorts"):
-        logger.info(f"[S07b] LLM + merge for {cohort}")
+        logger.info(f"[S06b] LLM + merge for {cohort}")
 
         s07_path = input_dir / f"{cohort}_drugs_full_data.parquet"
         if not s07_path.is_file():
-            logger.error("[S07b] Missing S07 input: %s — run s07_split_drug first.", s07_path)
-            raise FileNotFoundError(f"[S07b] Required file not found: {s07_path}")
+            logger.error("[S06b] Missing S07 input: %s — run s06_split_drug first.", s07_path)
+            raise FileNotFoundError(f"[S06b] Required file not found: {s07_path}")
 
-        logger.info("[S07b] Loading dataset %s", s07_path)
+        logger.info("[S06b] Loading dataset %s", s07_path)
         ds = pd.read_parquet(s07_path)
         if "medicinal_product" not in ds.columns:
-            raise ValueError(f"[S07b] {s07_path} must contain medicinal_product")
+            raise ValueError(f"[S06b] {s07_path} must contain medicinal_product")
 
         df = _llm_decompose_dataframe(ds, model, tokenizer, batch_size)
         _validate_llm_columns(df, str(s07_path))
@@ -599,7 +599,7 @@ def run(ctx: PipelineContext) -> None:
 
         dq_summary_markdown(
             ctx,
-            "s07b_llm_clean",
+            "s06b_llm_clean",
             cohort,
             df.height,
             df_clean.height,
@@ -607,7 +607,7 @@ def run(ctx: PipelineContext) -> None:
         )
 
         logger.info(
-            f"[S07b] {cohort}: {df_clean.height:,}/{df.height:,} rows with non-empty basename "
+            f"[S06b] {cohort}: {df_clean.height:,}/{df.height:,} rows with non-empty basename "
             f"({coverage_pct:.1f}%)"
         )
 
@@ -620,10 +620,10 @@ def run(ctx: PipelineContext) -> None:
 
     write_manifest(
         ctx,
-        "s07b_llm_clean",
-        {"stage": "s07b_llm_clean", "cohorts": manifest_payload},
+        "s06b_llm_clean",
+        {"stage": "s06b_llm_clean", "cohorts": manifest_payload},
     )
-    logger.success("[S07b] LLM decomposition + merge complete")
+    logger.success("[S06b] LLM decomposition + merge complete")
 
 
 __all__ = ["run"]

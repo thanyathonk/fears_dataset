@@ -55,14 +55,14 @@ fi
 # Default: all testable stages (S03-S10 except S07b)
 ALL_STAGES=(
     s03_join_partition_age
-    s05_split_adr
-    s06_map_omop_meddra
-    s06b_map_omop_meddra_full_hierarchy
-    s07_split_drug
-    # s07b_llm_clean — skipped (requires GPU)
-    s08_enrich_drug_identifiers
-    s09_finalize_merge_and_report
-    s10_package_deliverables
+    s04_split_adr
+    s05_map_omop_meddra
+    s05b_map_omop_meddra_full_hierarchy
+    s06_split_drug
+    # s06b_llm_clean — skipped (requires GPU)
+    s07_enrich_drug_identifiers
+    s08_finalize_merge_and_report
+    s09_package_deliverables
 )
 
 # Allow partial stage selection via command line args

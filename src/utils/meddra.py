@@ -31,7 +31,7 @@ EXCLUDED_SOCS = [
 ]
 
 
-def vocab_dir(ctx: PipelineContext, *, stage_tag: str = "S06") -> Path:
+def vocab_dir(ctx: PipelineContext, *, stage_tag: str = "S05") -> Path:
     """Resolve the MedDRA vocabulary directory from config, with legacy fallback.
 
     Raises FileNotFoundError if neither candidate path exists.

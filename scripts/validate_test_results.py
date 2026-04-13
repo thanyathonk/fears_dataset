@@ -36,19 +36,19 @@ EXPECTED_OUTPUTS = {
     "s03_join_partition_age": [
         "{cohort}_events_full_data.parquet",
     ],
-    "s05_split_adr": [
+    "s04_split_adr": [
         "{cohort}_adr_full_data.parquet",
     ],
-    "s06_map_omop_meddra": [
+    "s05_map_omop_meddra": [
         "{cohort}/pt_soc_dictionary_full_data.parquet",
     ],
-    "s07_split_drug": [
+    "s06_split_drug": [
         "{cohort}_drugs_full_data.parquet",
     ],
-    "s08_enrich_drug_identifiers": [
+    "s07_enrich_drug_identifiers": [
         "{cohort}_drugs_enriched.parquet",
     ],
-    "s09_finalize_merge_and_report": [],
+    "s08_finalize_merge_and_report": [],
 }
 
 COHORTS = ["adult", "pediatric"]
@@ -56,8 +56,8 @@ COHORTS = ["adult", "pediatric"]
 # Key columns that should never be all-null
 CRITICAL_COLUMNS = {
     "s03_join_partition_age": ["safetyreportid", "age_years", "medicinal_product", "reaction_meddrapt"],
-    "s05_split_adr": ["safetyreportid", "reaction_meddrapt"],
-    "s07_split_drug": ["medicinal_product"],
+    "s04_split_adr": ["safetyreportid", "reaction_meddrapt"],
+    "s06_split_drug": ["medicinal_product"],
 }
 
 
@@ -112,7 +112,7 @@ def check_file_exists(result: ValidationResult, staging_dir: Path, output_root: 
     for stage, patterns in EXPECTED_OUTPUTS.items():
         stage_dir = staging_dir / stage
         for cohort in COHORTS:
-            if stage == "s08_enrich_drug_identifiers":
+            if stage == "s07_enrich_drug_identifiers":
                 fpath = _s08_parquet(stage_dir, cohort)
                 if fpath is not None:
                     row_count = pl.scan_parquet(str(fpath)).select(pl.len()).collect().item()
@@ -138,7 +138,7 @@ def check_file_exists(result: ValidationResult, staging_dir: Path, output_root: 
 
     for cohort in COHORTS:
         fpath = _s09_parquet(output_root, cohort)
-        stage = "s09_finalize_merge_and_report"
+        stage = "s08_finalize_merge_and_report"
         if fpath.exists():
             row_count = pl.scan_parquet(str(fpath)).select(pl.len()).collect().item()
             result.add(
@@ -163,7 +163,7 @@ def check_schema_match(result: ValidationResult, staging_dir: Path) -> None:
         for cohort in COHORTS:
             patterns = EXPECTED_OUTPUTS.get(stage, [])
             for pattern in patterns:
-                if stage == "s08_enrich_drug_identifiers":
+                if stage == "s07_enrich_drug_identifiers":
                     fpath = _s08_parquet(stage_dir, cohort)
                 else:
                     fname = pattern.format(cohort=cohort)
@@ -186,7 +186,7 @@ def check_no_empty_critical(result: ValidationResult, staging_dir: Path) -> None
         for cohort in COHORTS:
             patterns = EXPECTED_OUTPUTS.get(stage, [])
             for pattern in patterns:
-                if stage == "s08_enrich_drug_identifiers":
+                if stage == "s07_enrich_drug_identifiers":
                     fpath = _s08_parquet(stage_dir, cohort)
                 else:
                     fname = pattern.format(cohort=cohort)
@@ -226,7 +226,7 @@ def check_row_count_match(
     for stage, patterns in EXPECTED_OUTPUTS.items():
         for cohort in COHORTS:
             for pattern in patterns:
-                if stage == "s08_enrich_drug_identifiers":
+                if stage == "s07_enrich_drug_identifiers":
                     base_path = _s08_parquet(baseline_dir / stage, cohort)
                     curr_path = _s08_parquet(current_dir / stage, cohort)
                 else:
@@ -255,7 +255,7 @@ def check_row_count_match(
 
     if baseline_output_root is None or current_output_root is None:
         return
-    stage = "s09_finalize_merge_and_report"
+    stage = "s08_finalize_merge_and_report"
     for cohort in COHORTS:
         base_path = _s09_parquet(baseline_output_root, cohort)
         curr_path = _s09_parquet(current_output_root, cohort)

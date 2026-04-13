@@ -9,7 +9,7 @@
 #SBATCH --output=logs/slurm_s08_%j.out
 #SBATCH --error=logs/slurm_s08_%j.err
 
-# S08 — Enrich drugs via RxNorm/ChEMBL/KEGG
+# S08 — Final 3-way merge and reporting
 # Usage: sbatch scripts/slurm_stages/run_s08.sh
 
 set -euo pipefail
@@ -21,11 +21,11 @@ conda activate "${CONDA_ENV:-fulldata}"
 export PYTHONUNBUFFERED=1
 
 echo "=========================================="
-echo "Stage: s08_enrich_drug_identifiers"
+echo "Stage: s08_finalize_merge_and_report"
 echo "Start: $(date)"
 echo "=========================================="
 
-python -m src.cli run-stage s08_enrich_drug_identifiers
+python -m src.cli run-stage s08_finalize_merge_and_report
 
 echo "=========================================="
 echo "Done:  $(date)"

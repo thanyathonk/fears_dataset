@@ -70,19 +70,19 @@ run_cmd "S03 – Join tables + Early quality filters" \
 
 # S05: Split ADR reports
 run_cmd "S05 – Split ADR reports" \
-    python -u -m src.cli run-stage s05_split_adr --run-id "${RUN_ID_ROOT}_s05"
+    python -u -m src.cli run-stage s04_split_adr --run-id "${RUN_ID_ROOT}_s05"
 
 # S06: MedDRA mapping (PT→SOC via CONCEPT_ANCESTOR)
 run_cmd "S06 – MedDRA mapping" \
-    python -u -m src.cli run-stage s06_map_omop_meddra --run-id "${RUN_ID_ROOT}_s06"
+    python -u -m src.cli run-stage s05_map_omop_meddra --run-id "${RUN_ID_ROOT}_s06"
 
 # S06b: MedDRA full hierarchy (PT→HLT→HLGT→SOC via CONCEPT_RELATIONSHIP)
 run_cmd "S06b – MedDRA full hierarchy" \
-    python -u -m src.cli run-stage s06b_map_omop_meddra_full_hierarchy --run-id "${RUN_ID_ROOT}_s06b"
+    python -u -m src.cli run-stage s05b_map_omop_meddra_full_hierarchy --run-id "${RUN_ID_ROOT}_s06b"
 
 # S07: Split drug names for LLM cleaning
 run_cmd "S07 – Split drug names" \
-    python -u -m src.cli run-stage s07_split_drug --run-id "${RUN_ID_ROOT}_s07"
+    python -u -m src.cli run-stage s06_split_drug --run-id "${RUN_ID_ROOT}_s07"
 
 echo "=========================================="
 echo "✅ All stages S03, S05, S06, S06b, S07 completed successfully"

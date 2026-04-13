@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Stage S06b – Map ADRs to MedDRA full hierarchy (PT→HLT→HLGT→SOC).
+"""Stage S05b – Map ADRs to MedDRA full hierarchy (PT→HLT→HLGT→SOC).
 
 Uses CONCEPT_RELATIONSHIP to build the complete MedDRA hierarchy instead of
 the shortcut CONCEPT_ANCESTOR used in S06.  All reaction terms are kept
@@ -62,7 +62,7 @@ def _load_concept_relationship(
 ) -> pl.DataFrame:
     """Load CONCEPT_RELATIONSHIP filtered to MedDRA-only relationships."""
     logger.info(
-        f"[S06b] Loading CONCEPT_RELATIONSHIP "
+        f"[S05b] Loading CONCEPT_RELATIONSHIP "
         f"(filtering for {len(meddra_concept_ids):,} MedDRA concepts)..."
     )
     return (
@@ -103,7 +103,7 @@ def _build_edge_tables(
     hlgt_ids = hlgt_df["hlgt_id"].to_list()
     soc_ids  = soc_df["soc_id"].to_list()
 
-    logger.info("[S06b] Building edge tables...")
+    logger.info("[S05b] Building edge tables...")
 
     pt_to_hlt = (
         relationship_df
@@ -145,7 +145,7 @@ def _build_edge_tables(
     )
 
     logger.info(
-        f"[S06b] Edge tables: {pt_to_hlt.height:,} PT→HLT, "
+        f"[S05b] Edge tables: {pt_to_hlt.height:,} PT→HLT, "
         f"{hlt_to_hlgt.height:,} HLT→HLGT, {hlgt_to_soc.height:,} HLGT→SOC"
     )
     return pt_to_hlt, hlt_to_hlgt, hlgt_to_soc
@@ -156,7 +156,7 @@ def _build_meddra_resources(concept_dir: Path) -> MedDRAResources:
     concept_path = concept_dir / "CONCEPT.csv"
     relationship_path = concept_dir / "CONCEPT_RELATIONSHIP.csv"
 
-    logger.info("[S06b] Loading CONCEPT.csv...")
+    logger.info("[S05b] Loading CONCEPT.csv...")
     concept_df = _load_concepts(concept_path)
 
     pt_df   = _concept_subset(concept_df, "PT",   "pt")
@@ -171,7 +171,7 @@ def _build_meddra_resources(concept_dir: Path) -> MedDRAResources:
     )
 
     logger.info(
-        f"[S06b] Loaded {pt_df.height:,} PT, {hlt_df.height:,} HLT, "
+        f"[S05b] Loaded {pt_df.height:,} PT, {hlt_df.height:,} HLT, "
         f"{hlgt_df.height:,} HLGT, {soc_df.height:,} SOC concepts"
     )
     return MedDRAResources(
@@ -186,7 +186,7 @@ def _build_meddra_resources(concept_dir: Path) -> MedDRAResources:
 
 def _build_full_paths(resources: MedDRAResources) -> pl.DataFrame:
     """Join all levels to produce expanded PT→HLT→HLGT→SOC rows."""
-    logger.info("[S06b] Building full hierarchy paths...")
+    logger.info("[S05b] Building full hierarchy paths...")
 
     pt_hlt = (
         resources.pt
@@ -235,7 +235,7 @@ def _build_full_paths(resources: MedDRAResources) -> pl.DataFrame:
     )
 
     logger.info(
-        f"[S06b] Built {paths.height:,} full paths "
+        f"[S05b] Built {paths.height:,} full paths "
         f"({paths['meddra_concept_id'].n_unique():,} unique PTs)"
     )
     return paths
@@ -243,7 +243,7 @@ def _build_full_paths(resources: MedDRAResources) -> pl.DataFrame:
 
 def _aggregate_by_pt(paths_df: pl.DataFrame) -> pl.DataFrame:
     """Aggregate expanded paths into a PT-centric dictionary with list columns."""
-    logger.info("[S06b] Aggregating paths by PT...")
+    logger.info("[S05b] Aggregating paths by PT...")
 
     pt_dict = (
         paths_df
@@ -263,7 +263,7 @@ def _aggregate_by_pt(paths_df: pl.DataFrame) -> pl.DataFrame:
         .rename({"meddra_concept_name": "MedDRA_concept_name"})
     )
 
-    logger.info(f"[S06b] Aggregated to {pt_dict.height:,} unique PTs")
+    logger.info(f"[S05b] Aggregated to {pt_dict.height:,} unique PTs")
     return pt_dict
 
 
@@ -290,7 +290,7 @@ def _map_cohort_adr(
     cohort_dir.mkdir(parents=True, exist_ok=True)
 
     # ── Step 0: deduplicate reaction terms ───────────────────────────────────
-    logger.info(f"[S06b][{cohort.upper()}] Step 0/4: Deduplicating reaction terms...")
+    logger.info(f"[S05b][{cohort.upper()}] Step 0/4: Deduplicating reaction terms...")
     adr_lf = (
         pl.scan_parquet(adr_path)
         .select(pl.col("reaction_meddrapt").cast(pl.Utf8, strict=False))
@@ -307,12 +307,12 @@ def _map_cohort_adr(
     adr_unique_count = adr_unique.height
     reduction_pct = (1 - adr_unique_count / adr_total) * 100 if adr_total > 0 else 0.0
     logger.info(
-        f"[S06b][{cohort.upper()}]   → {adr_total:,} → {adr_unique_count:,} unique terms "
+        f"[S05b][{cohort.upper()}]   → {adr_total:,} → {adr_unique_count:,} unique terms "
         f"({reduction_pct:.2f}% reduction)"
     )
 
     # ── Step 1: map terms → PT ───────────────────────────────────────────────
-    logger.info(f"[S06b][{cohort.upper()}] Step 1/4: Mapping reaction terms → MedDRA PT...")
+    logger.info(f"[S05b][{cohort.upper()}] Step 1/4: Mapping reaction terms → MedDRA PT...")
     mapped_pt = (
         adr_unique.lazy()
         .join(resources.pt.lazy(), left_on="reaction_term", right_on="pt_name_match", how="left")
@@ -322,15 +322,15 @@ def _map_cohort_adr(
     coverage_pct = mapped_count / adr_unique_count * 100 if adr_unique_count > 0 else 0.0
 
     # ── Step 2: build full paths (vocabulary-level, independent of cohort) ───
-    logger.info(f"[S06b][{cohort.upper()}] Step 2/4: Building PT→HLT→HLGT→SOC paths...")
+    logger.info(f"[S05b][{cohort.upper()}] Step 2/4: Building PT→HLT→HLGT→SOC paths...")
     all_paths = _build_full_paths(resources)
 
     # ── Step 3: filter excluded SOCs ─────────────────────────────────────────
-    logger.info(f"[S06b][{cohort.upper()}] Step 3/4: Filtering excluded SOCs...")
+    logger.info(f"[S05b][{cohort.upper()}] Step 3/4: Filtering excluded SOCs...")
     paths_filtered = all_paths.filter(~pl.col("meddra_soc_name").is_in(EXCLUDED_SOCS))
     soc_filtered_count = all_paths.height - paths_filtered.height
     logger.info(
-        f"[S06b][{cohort.upper()}]   → Removed {soc_filtered_count:,} paths "
+        f"[S05b][{cohort.upper()}]   → Removed {soc_filtered_count:,} paths "
         f"(excluded SOCs: {', '.join(EXCLUDED_SOCS)})"
     )
 
@@ -341,7 +341,7 @@ def _map_cohort_adr(
     )
 
     # ── Step 4: aggregate + write ────────────────────────────────────────────
-    logger.info(f"[S06b][{cohort.upper()}] Step 4/4: Aggregating and writing outputs...")
+    logger.info(f"[S05b][{cohort.upper()}] Step 4/4: Aggregating and writing outputs...")
     pt_hierarchy_dict = _aggregate_by_pt(paths_filtered)
 
     dict_path  = cohort_dir / "pt_hierarchy_dictionary_full_data.parquet"
@@ -356,12 +356,12 @@ def _map_cohort_adr(
     unique_socs  = pt_hierarchy_dict["meddra_soc_names"].explode().drop_nulls().n_unique()
 
     logger.success(
-        f"[S06b][{cohort.upper()}] ✓ {mapped_count:,}/{adr_unique_count:,} unique ADRs mapped "
+        f"[S05b][{cohort.upper()}] ✓ {mapped_count:,}/{adr_unique_count:,} unique ADRs mapped "
         f"({coverage_pct:.2f}%) | {unique_pts:,} PTs · {unique_hlts} HLTs · "
         f"{unique_hlgts} HLGTs · {unique_socs} SOCs"
     )
-    logger.info(f"[S06b][{cohort.upper()}]   Dictionary : {dict_path}")
-    logger.info(f"[S06b][{cohort.upper()}]   Paths      : {paths_path}")
+    logger.info(f"[S05b][{cohort.upper()}]   Dictionary : {dict_path}")
+    logger.info(f"[S05b][{cohort.upper()}]   Paths      : {paths_path}")
 
     return {
         "adr_rows":              int(adr_total),
@@ -383,14 +383,14 @@ def run(ctx: PipelineContext) -> None:
     vocab_dir  = _vocab_dir(ctx)
     resources  = _build_meddra_resources(vocab_dir)
 
-    input_dir  = stage_output_path(ctx, "s05_split_adr")
-    output_dir = stage_output_path(ctx, "s06b_map_omop_meddra_full_hierarchy")
+    input_dir  = stage_output_path(ctx, "s04_split_adr")
+    output_dir = stage_output_path(ctx, "s05b_map_omop_meddra_full_hierarchy")
     output_dir.mkdir(parents=True, exist_ok=True)
 
     manifest_payload: Dict[str, Dict[str, object]] = {}
 
     logger.info("=" * 80)
-    logger.info("[S06b] MedDRA full-hierarchy mapping (adult + pediatric)")
+    logger.info("[S05b] MedDRA full-hierarchy mapping (adult + pediatric)")
     logger.info("=" * 80)
 
     for cohort in ("pediatric", "adult"):
@@ -402,7 +402,7 @@ def run(ctx: PipelineContext) -> None:
         adr_path = input_dir / f"{cohort}_adr_full_data.parquet"
         if not adr_path.exists():
             raise FileNotFoundError(
-                f"[S06b] Missing ADR file for cohort '{cohort}': {adr_path}"
+                f"[S05b] Missing ADR file for cohort '{cohort}': {adr_path}"
             )
 
         stats = _map_cohort_adr(
@@ -414,7 +414,7 @@ def run(ctx: PipelineContext) -> None:
 
         dq_summary_markdown(
             ctx,
-            "s06b_map_omop_meddra_full_hierarchy",
+            "s05b_map_omop_meddra_full_hierarchy",
             cohort,
             stats["adr_rows"],
             stats["mapped_rows"],
@@ -430,7 +430,7 @@ def run(ctx: PipelineContext) -> None:
     # ── Summary ──────────────────────────────────────────────────────────────
     logger.info("")
     logger.info("=" * 80)
-    logger.info("[S06b] Summary")
+    logger.info("[S05b] Summary")
     logger.info("=" * 80)
     logger.info(
         "┌────────────┬──────────────┬──────────────┬────────────┬──────┬──────┬───────┬──────┐"
@@ -458,18 +458,18 @@ def run(ctx: PipelineContext) -> None:
     logger.info("")
 
     vocab_version = get_vocab_version_info(vocab_dir)
-    logger.info(f"[S06b] Vocabulary version info: {vocab_version}")
+    logger.info(f"[S05b] Vocabulary version info: {vocab_version}")
 
     write_manifest(
         ctx,
-        "s06b_map_omop_meddra_full_hierarchy",
+        "s05b_map_omop_meddra_full_hierarchy",
         {
-            "stage": "s06b_map_omop_meddra_full_hierarchy",
+            "stage": "s05b_map_omop_meddra_full_hierarchy",
             "vocabulary": vocab_version,
             "cohorts": manifest_payload,
         },
     )
-    logger.success("[S06b] Full-hierarchy MedDRA mapping complete")
+    logger.success("[S05b] Full-hierarchy MedDRA mapping complete")
 
 
 __all__ = ["run"]

@@ -14,7 +14,7 @@
 # Usage:
 #   sbatch scripts/slurm_stages/run_all.sh
 #   sbatch scripts/slurm_stages/run_all.sh --skip s01_fetch_openfda,s02_entity_format
-#   sbatch scripts/slurm_stages/run_all.sh --skip s01_fetch_openfda,s02_entity_format,s07b_llm_clean
+#   sbatch scripts/slurm_stages/run_all.sh --skip s01_fetch_openfda,s02_entity_format,s06b_llm_clean
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

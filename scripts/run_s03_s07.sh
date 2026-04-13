@@ -49,7 +49,7 @@ echo "=========================================="
 echo "start: S05 – Split ADR reports"
 echo "time: $(date 2>/dev/null || echo 'N/A')"
 echo "=========================================="
-python -u -m src.cli run-stage s05_split_adr
+python -u -m src.cli run-stage s04_split_adr
 echo "✅ S05 completed"
 echo ""
 
@@ -58,7 +58,7 @@ echo "=========================================="
 echo "start: S06 – MedDRA mapping"
 echo "time: $(date 2>/dev/null || echo 'N/A')"
 echo "=========================================="
-python -u -m src.cli run-stage s06_map_omop_meddra
+python -u -m src.cli run-stage s05_map_omop_meddra
 echo "✅ S06 completed"
 echo ""
 
@@ -67,7 +67,7 @@ echo "=========================================="
 echo "start: S06b – MedDRA full hierarchy"
 echo "time: $(date 2>/dev/null || echo 'N/A')"
 echo "=========================================="
-python -u -m src.cli run-stage s06b_map_omop_meddra_full_hierarchy
+python -u -m src.cli run-stage s05b_map_omop_meddra_full_hierarchy
 echo "✅ S06b completed"
 echo ""
 
@@ -76,7 +76,7 @@ echo "=========================================="
 echo "start: S07 – Split drug names"
 echo "time: $(date 2>/dev/null || echo 'N/A')"
 echo "=========================================="
-python -u -m src.cli run-stage s07_split_drug
+python -u -m src.cli run-stage s06_split_drug
 echo "✅ S07 completed"
 echo ""
 

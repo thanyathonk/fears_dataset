@@ -25,7 +25,7 @@ echo "=========================================="
 
 # Paths
 PROJECT_ROOT="/share/galaxy/thanyathon/candrug_pipeline"
-DATA_DIR="$PROJECT_ROOT/data/staging/s07_split_drug"
+DATA_DIR="$PROJECT_ROOT/data/staging/s06_split_drug"
 MODEL_PATH="/share/galaxy/thanyathon/models"  # Local downloaded model (no internet needed)
 
 INPUT_FILE="$DATA_DIR/${COHORT}_drugs.parquet"

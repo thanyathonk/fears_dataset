@@ -9,7 +9,7 @@
 #SBATCH --output=logs/slurm_s07_%j.out
 #SBATCH --error=logs/slurm_s07_%j.err
 
-# S07 — Collapse to unique drugs with context lists
+# S07 — Enrich drugs via RxNorm/ChEMBL/KEGG
 # Usage: sbatch scripts/slurm_stages/run_s07.sh
 
 set -euo pipefail
@@ -21,11 +21,11 @@ conda activate "${CONDA_ENV:-fulldata}"
 export PYTHONUNBUFFERED=1
 
 echo "=========================================="
-echo "Stage: s07_split_drug"
+echo "Stage: s07_enrich_drug_identifiers"
 echo "Start: $(date)"
 echo "=========================================="
 
-python -m src.cli run-stage s07_split_drug
+python -m src.cli run-stage s07_enrich_drug_identifiers
 
 echo "=========================================="
 echo "Done:  $(date)"

@@ -31,7 +31,7 @@ git checkout <commit-hash-or-tag>
 
 Dependencies follow:
 
-`S01 → S02 → S03 → S05 → S06/S06b → S07 → S07b (optional) → S08 → S09 → S10`
+`S01 → S02 → S03 → S04 → S06/S05b → S06 → S06b (optional) → S07 → S08 → S10`
 
 Starting from **S01** with the **same bulk data** is required for full reproducibility. Joining mid-pipeline only works if you copy **compatible intermediate artifacts** from the reference run (same schema/version).
 
@@ -42,9 +42,9 @@ Copy `.env.example` → `.env` in the repo root. Python loads it automatically w
 | Variable | Stage | Required? |
 |----------|--------|-----------|
 | `OPENFDA_API_KEY` | S01 | Optional but recommended (higher API limits for manifest / requests). |
-| `NCBI_API_KEY` | S08 | Optional; improves PubChem/NCBI rate limits. |
-| `OPENAI_API_KEY` / `S07_*` | S07b scripts | Required when calling an OpenAI-compatible server. |
-| `HF_TOKEN` | S10 HF upload | Only if uploading to Hugging Face. |
+| `NCBI_API_KEY` | S07 | Optional; improves PubChem/NCBI rate limits. |
+| `OPENAI_API_KEY` / `S07_*` | S06b scripts | Required when calling an OpenAI-compatible server. |
+| `HF_TOKEN` | S09 HF upload | Only if uploading to Hugging Face. |
 
 Each collaborator uses **their own keys**; reproducibility means **same tier of access + same external data**, not sharing secrets in git.
 

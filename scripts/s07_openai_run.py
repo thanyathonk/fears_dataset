@@ -53,12 +53,12 @@ def _env_path(key: str, default: str) -> Path:
 
 INPUT_PARQUET = _env_path(
     "S07_INPUT_PARQUET",
-    "data/staging/s07_split_drug/pediatric_drugs_full_data.parquet",
+    "data/staging/s06_split_drug/pediatric_drugs_full_data.parquet",
 )
 BATCH_DIR = _env_path("S07_BATCH_DIR", "data/staging/s07b_llm_batches")
 OUTPUT_PARQUET = _env_path(
     "S07_OUTPUT_PARQUET",
-    "data/staging/s07b_llm_clean/pediatric_drugs_llm_cleaned_full_data.parquet",
+    "data/staging/s06b_llm_clean/pediatric_drugs_llm_cleaned_full_data.parquet",
 )
 
 API_BASE_URL = os.environ.get("S07_API_BASE_URL", "http://127.0.0.1:8000/v1").strip()

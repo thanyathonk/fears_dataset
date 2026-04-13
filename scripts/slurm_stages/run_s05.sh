@@ -9,7 +9,7 @@
 #SBATCH --output=logs/slurm_s05_%j.out
 #SBATCH --error=logs/slurm_s05_%j.err
 
-# S05 — Extract ADR triples
+# S05 — Map MedDRA PT to SOC (CONCEPT_ANCESTOR)
 # Usage: sbatch scripts/slurm_stages/run_s05.sh
 
 set -euo pipefail
@@ -21,11 +21,11 @@ conda activate "${CONDA_ENV:-fulldata}"
 export PYTHONUNBUFFERED=1
 
 echo "=========================================="
-echo "Stage: s05_split_adr"
+echo "Stage: s05_map_omop_meddra"
 echo "Start: $(date)"
 echo "=========================================="
 
-python -m src.cli run-stage s05_split_adr
+python -m src.cli run-stage s05_map_omop_meddra
 
 echo "=========================================="
 echo "Done:  $(date)"

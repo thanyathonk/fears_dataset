@@ -32,9 +32,9 @@ Pipeline นี้ประมวลผล **FAERS (FDA Adverse Event Reporting 
 **Dependency Flow:**
 ```
 S01 (fetch) → S02 (format) → S03 (join+partition)
-    → S05 (split ADR) → S06/S06b (MedDRA)
-    → S07 (split drug) → S07b [GPU] (LLM clean) → S08 [API] (enrich)
-        → S09 (merge) → S10 (package)
+    → S04 (split ADR) → S06/S05b (MedDRA)
+    → S06 (split drug) → S06b [GPU] (LLM clean) → S07 [API] (enrich)
+        → S08 (merge) → S09 (package)
 ```
 
 ---
@@ -126,24 +126,24 @@ sbatch scripts/slurm_run_s03_s07.sh
 | Stage | ทำอะไร | Output |
 |-------|--------|--------|
 | S03 | Join + partition Pediatric/Adult + NICHD | `adult_events_full_data.parquet`, `pediatric_events_full_data.parquet` |
-| S05 | Split ADR reactions | `{cohort}_adr_full_data.parquet` |
-| S06 | Map MedDRA PT→SOC | `pt_soc_dictionary_full_data.parquet` |
-| S06b | Map MedDRA full hierarchy (PT→HLT→HLGT→SOC) | `pt_hierarchy_dictionary_full_data.parquet` |
-| S07 | Extract unique drug names | `{cohort}_drugs_full_data.parquet` |
+| S04 | Split ADR reactions | `{cohort}_adr_full_data.parquet` |
+| S05 | Map MedDRA PT→SOC | `pt_soc_dictionary_full_data.parquet` |
+| S05b | Map MedDRA full hierarchy (PT→HLT→HLGT→SOC) | `pt_hierarchy_dictionary_full_data.parquet` |
+| S06 | Extract unique drug names | `{cohort}_drugs_full_data.parquet` |
 
 ---
 
-### S07b — LLM Drug Name Cleaning (GPU)
+### S06b — LLM Drug Name Cleaning (GPU)
 
 ```bash
 sbatch scripts/step4_s07b_llm.sh
 ```
 
-- **Output:** `data/staging/s07b_llm_clean/{cohort}_drugs_clean_full_data.parquet`
+- **Output:** `data/staging/s06b_llm_clean/{cohort}_drugs_clean_full_data.parquet`
 
 ---
 
-### S08 — Drug Enrichment (RxNorm/PubChem API)
+### S07 — Drug Enrichment (RxNorm/PubChem API)
 
 รันใน **tmux** (ใช้เวลานาน, เรียก API)
 
@@ -156,13 +156,13 @@ tmux new-session -s s08_adult "bash scripts/step5_s08_enrich.sh adult"
 tmux new-session -s s08 "bash scripts/step5_s08_enrich.sh"
 ```
 
-- **Output:** `data/staging/s08_enrich_drug_identifiers/{cohort}_drugs_enriched_final_full_data.parquet`
+- **Output:** `data/staging/s07_enrich_drug_identifiers/{cohort}_drugs_enriched_final_full_data.parquet`
 
 ---
 
 ### S09–S10 — Finalize & Package
 
-รัน **หลัง** S07b และ S08 เสร็จ
+รัน **หลัง** S06b และ S07 เสร็จ
 
 ```bash
 bash scripts/run_s09_s10.sh
@@ -192,7 +192,7 @@ OpenFDA API
 [S05] Split ADR        [S07] Extract unique drugs
     │                      │
     ▼                      ▼
-[S06/S06b] MedDRA     [S07b] LLM clean
+[S06/S05b] MedDRA     [S07b] LLM clean
     │                      │
     │                  [S08] RxNorm/PubChem enrich
     │                      │
@@ -248,13 +248,13 @@ OpenFDA API
 | `data/openFDA_drug_event/` | Raw CSV จาก S01 |
 | `data/staging/s02_entity_format/` | ER tables จาก S02 |
 | `data/staging/s03_join_partition_age/` | Cohort events |
-| `data/staging/s05_split_adr/` | ADR tables |
-| `data/staging/s06_map_omop_meddra/` | MedDRA mapping |
-| `data/staging/s06b_map_omop_meddra_full_hierarchy/` | MedDRA full hierarchy |
-| `data/staging/s07_split_drug/` | Unique drugs |
-| `data/staging/s07b_llm_clean/` | LLM-cleaned drugs |
-| `data/staging/s08_enrich_drug_identifiers/` | Enriched drugs |
-| `data/staging/s09_finalize_merge_and_report/` | Final merge |
+| `data/staging/s04_split_adr/` | ADR tables |
+| `data/staging/s05_map_omop_meddra/` | MedDRA mapping |
+| `data/staging/s05b_map_omop_meddra_full_hierarchy/` | MedDRA full hierarchy |
+| `data/staging/s06_split_drug/` | Unique drugs |
+| `data/staging/s06b_llm_clean/` | LLM-cleaned drugs |
+| `data/staging/s07_enrich_drug_identifiers/` | Enriched drugs |
+| `data/staging/s08_finalize_merge_and_report/` | Final merge |
 | `data/output/Adult/`, `data/output/Pediatric/` | Package deliverables |
 | `logs/` | Run logs |
 
@@ -271,8 +271,8 @@ OpenFDA API
 | `scripts/slurm_run_s02_high_memory.sh` | S02 Format (SLURM, 120GB, high-memory) |
 | `scripts/run_s03_s07.sh` | S03–S07 (local) |
 | `scripts/slurm_run_s03_s07.sh` | S03–S07 (SLURM) |
-| `scripts/step4_s07b_llm.sh` | S07b LLM (SLURM GPU) |
-| `scripts/step5_s08_enrich.sh` | S08 Enrich (tmux) |
+| `scripts/step4_s07b_llm.sh` | S06b LLM (SLURM GPU) |
+| `scripts/step5_s08_enrich.sh` | S07 Enrich (tmux) |
 | `scripts/run_s09_s10.sh` | S09–S10 |
 | `scripts/archive_old_data.sh` | Archive ผลลัพธ์เก่า |
 
@@ -307,7 +307,7 @@ squeue -u $USER  # SLURM jobs
 - [ ] S01 เสร็จ
 - [ ] S02 เสร็จ (drug_openfda_wide, drug_mapping_input)
 - [ ] S03–S07 เสร็จ
-- [ ] S07b เสร็จ
-- [ ] S08 เสร็จ (ทั้ง pediatric และ adult)
+- [ ] S06b เสร็จ
+- [ ] S07 เสร็จ (ทั้ง pediatric และ adult)
 - [ ] S09–S10 เสร็จ
 - [ ] ตรวจสอบ `data/output/Adult/` และ `data/output/Pediatric/`

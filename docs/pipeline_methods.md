@@ -15,7 +15,7 @@
    - [S02 – Entity Formatting](#s02--entity-formatting)
    - [S03 – Join & Age Partition](#s03--join--age-partition)
    - [S05 – ADR Split](#s05--adr-split)
-   - [S06 / S06b – MedDRA Mapping](#s06--s06b--meddra-mapping)
+   - [S06 / S05b – MedDRA Mapping](#s06--s06b--meddra-mapping)
    - [S07 – Drug List Collapse](#s07--drug-list-collapse)
    - [S07b – LLM Drug Decomposition](#s07b--llm-drug-decomposition)
    - [S08 – RxNorm Enrichment](#s08--rxnorm-enrichment)
@@ -45,16 +45,16 @@ S03  Inner join all entities · filter Suspect-only + qualified reporters
     │
     ├──────────────────────────────────────┐
     ▼                                      ▼
-S05  Extract unique ADR rows         S07  Collapse to unique medicinal_product rows
+S04  Extract unique ADR rows         S06  Collapse to unique medicinal_product rows
      (safetyreportid, PT, outcome)         with list-valued context columns
     │                                      │
     ▼                                      ▼
-S06/S06b  Map PT → SOC via        S07b  LLM (Qwen) decomposition:
+S06/S05b  Map PT → SOC via        S06b  LLM (Qwen) decomposition:
           MedDRA OMOP vocab               ingredients · strength · dosage_form
           → pt_soc_dictionary             ing_source = faers | llm | bracket
                                            │
                                            ▼
-                                    S08  RxNorm enrichment (7-step cascade):
+                                    S07  RxNorm enrichment (7-step cascade):
                                           basename → ingredient → LocalCID
                                           → suffix-strip → ChEMBL → approx → KEGG
                                           + coalesce ing_source (rxnav_basename etc.)
@@ -62,12 +62,12 @@ S06/S06b  Map PT → SOC via        S07b  LLM (Qwen) decomposition:
     │                                      │
     └──────────────┬───────────────────────┘
                    ▼
-S09  Three-way inner join: clean events × enriched drug × PT-SOC dictionary
+S08  Three-way inner join: clean events × enriched drug × PT-SOC dictionary
      dedup on (safetyreportid, medicinal_product, reaction_meddrapt)
      → patient_report_reporter_drug_reaction_full_data.parquet
                    │
                    ▼
-S10  Package dimension tables:
+S09  Package dimension tables:
      drug_full_data · adr_full_data · standard_reaction_full_data
 ```
 
@@ -152,25 +152,25 @@ NICHD band mapping:
 
 ---
 
-### S05 – ADR Split
+### S04 – ADR Split
 
-**Script:** `src/stages/s05_split_adr.py`
+**Script:** `src/stages/s04_split_adr.py`
 
 Extracts unique `(safetyreportid, reaction_meddrapt, reaction_outcome)` tuples from S03 events. Applies `.drop_nulls(["reaction_meddrapt"]).unique()` to prevent duplicate reaction lines before MedDRA mapping.
 
-**Outputs:** `data/staging/s05_split_adr/{cohort}_adr_full_data.parquet`
+**Outputs:** `data/staging/s04_split_adr/{cohort}_adr_full_data.parquet`
 
 ---
 
-### S06 / S06b – MedDRA Mapping
+### S05 / S05b – MedDRA Mapping
 
-**Scripts:** `src/stages/s06_map_omop_meddra.py` · `src/stages/s06b_map_omop_meddra_full_hierarchy.py`
+**Scripts:** `src/stages/s05_map_omop_meddra.py` · `src/stages/s05b_map_omop_meddra_full_hierarchy.py`
 
 Maps each unique `reaction_meddrapt` (Preferred Term, PT) to the MedDRA hierarchy using the OMOP vocabulary (`vocabulary_SNOMED_MEDDRA_RxNorm_ATC`).
 
 **S06:** Uses `CONCEPT_ANCESTOR` for PT→SOC shortcut mapping. Produces `pt_soc_dictionary_full_data.parquet` (used by S09).
 
-**S06b:** Uses `CONCEPT_RELATIONSHIP` to build the full PT→HLT→HLGT→SOC hierarchy. Produces:
+**S05b:** Uses `CONCEPT_RELATIONSHIP` to build the full PT→HLT→HLGT→SOC hierarchy. Produces:
 - `pt_hierarchy_dictionary_full_data.parquet` — PT-centric with aggregated level lists
 - `pt_hierarchy_paths_full_data.parquet` — expanded one-row-per-path format
 
@@ -181,13 +181,13 @@ Maps each unique `reaction_meddrapt` (Preferred Term, PT) to the MedDRA hierarch
 
 Text matching uses Title Case normalization for compatibility with MedDRA standards.
 
-**Outputs:** `data/staging/s06_map_omop_meddra/{cohort}/pt_soc_dictionary_full_data.parquet`
+**Outputs:** `data/staging/s05_map_omop_meddra/{cohort}/pt_soc_dictionary_full_data.parquet`
 
 ---
 
-### S07 – Drug List Collapse
+### S06 – Drug List Collapse
 
-**Script:** `src/stages/s07_split_drug.py`
+**Script:** `src/stages/s06_split_drug.py`
 
 Collapses the event table to one row per unique `medicinal_product`, collecting context columns as sorted, deduplicated lists (via `implode().list.unique().list.sort()`):
 
@@ -198,13 +198,13 @@ Collapses the event table to one row per unique `medicinal_product`, collecting 
 
 Drug names are normalized by `normalize_faers_drug_name()` before aggregation to reduce near-duplicate variants.
 
-**Outputs:** `data/staging/s07_split_drug/{cohort}_drugs_full_data.parquet`
+**Outputs:** `data/staging/s06_split_drug/{cohort}_drugs_full_data.parquet`
 
 ---
 
-### S07b – LLM Drug Decomposition
+### S06b – LLM Drug Decomposition
 
-**Script:** `src/stages/s07b_llm_clean.py` (in-process) · `scripts/s07_openai_run.py` (batch OpenAI)
+**Script:** `src/stages/s06b_llm_clean.py` (in-process) · `scripts/s07_openai_run.py` (batch OpenAI)
 
 Decomposes each drug name string into structured pharmaceutical fields using a large language model (default: `Qwen/Qwen2.5-32B-Instruct` or OpenAI GPT-4 equivalent).
 
@@ -231,13 +231,13 @@ Fields produced per row:
 | `qualifier_type` | str | `COUNTRY` / `BRAND` / … |
 | `ing_source` | str | `faers` / `llm` / `bracket` / `null` |
 
-**Outputs:** `data/staging/s07b_llm_clean/{cohort}_drugs_llm_cleaned.parquet`
+**Outputs:** `data/staging/s06b_llm_clean/{cohort}_drugs_llm_cleaned.parquet`
 
 ---
 
-### S08 – RxNorm Enrichment
+### S07 – RxNorm Enrichment
 
-**Script:** `src/stages/s08_enrich_drug_identifiers_local.py`
+**Script:** `src/stages/s07_enrich_drug_identifiers_local.py`
 
 Resolves each unique drug `basename` (from S07b) to a standard **RxCUI** (RxNorm concept identifier) using a 7-step cascade lookup, then enriches with `rxnorm_ingredients` list.
 
@@ -262,7 +262,7 @@ After all lookups, **`ing_source` is coalesced** for rows that were still `null`
 
 After enrichment, rows are split into:
 
-| Destination | Condition | `s08_quarantine_reason` |
+| Destination | Condition | `s07_quarantine_reason` |
 |-------------|-----------|------------------------|
 | **main** `*_drugs_enriched.parquet` | has `rxcui` and not suspicious | — |
 | **quarantine** `quarantine/*_drugs_quarantine.parquet` | `rxcui IS NULL` | `no_rxcui` |
@@ -272,14 +272,14 @@ After enrichment, rows are split into:
 Set `S08_QUARANTINE_ONLY_UNMAPPED=1` to restrict quarantine to unmapped-only.
 
 **Outputs:**
-- `data/staging/s08_enrich_drug_identifiers/{cohort}_drugs_enriched.parquet`
-- `data/staging/s08_enrich_drug_identifiers/quarantine/{cohort}_drugs_quarantine.parquet`
+- `data/staging/s07_enrich_drug_identifiers/{cohort}_drugs_enriched.parquet`
+- `data/staging/s07_enrich_drug_identifiers/quarantine/{cohort}_drugs_quarantine.parquet`
 
 ---
 
-### S09 – Final Merge & Dedup
+### S08 – Final Merge & Dedup
 
-**Script:** `src/stages/s09_finalize_merge_and_report.py`
+**Script:** `src/stages/s08_finalize_merge_and_report.py`
 
 Performs the three-way inner join to produce the final analysis-ready fact table:
 
@@ -305,11 +305,11 @@ Processing uses Polars batched streaming to stay within memory limits on large a
 
 ---
 
-### S10 – Package Deliverables
+### S09 – Package Deliverables
 
-**Script:** `src/stages/s10_package_deliverables.py`
+**Script:** `src/stages/s09_package_deliverables.py`
 
-Derives three additional deliverable tables from the S09 fact table (no new joins):
+Derives three additional deliverable tables from the S08 fact table (no new joins):
 
 | Table | Key | Logic |
 |-------|-----|-------|
@@ -332,10 +332,10 @@ All tables are written with ZSTD compression to `data/output/{Adult,Pediatric}/`
 | Qualified reporter | S03 | Exclude Unknown / Lawyer / Consumer |
 | Valid age | S03 | Age 0–120; null ages dropped |
 | Valid drug name | S03 | `medicinal_product IS NOT NULL AND len > 0` |
-| MedDRA coverage | S09 | Inner join → only PT terms present in MedDRA dictionary |
-| RxNorm coverage | S09 | Inner join → only drugs with resolved `rxcui` |
-| Deduplication | S09 | Unique on `(safetyreportid, medicinal_product, reaction_meddrapt)` |
-| Quarantine unmapped | S08 | Rows with `rxcui IS NULL` or suspicious name → separate file |
+| MedDRA coverage | S08 | Inner join → only PT terms present in MedDRA dictionary |
+| RxNorm coverage | S08 | Inner join → only drugs with resolved `rxcui` |
+| Deduplication | S08 | Unique on `(safetyreportid, medicinal_product, reaction_meddrapt)` |
+| Quarantine unmapped | S07 | Rows with `rxcui IS NULL` or suspicious name → separate file |
 
 ---
 
@@ -351,8 +351,8 @@ All figures from pipeline run **20260329T223533** (completed 2026-03-30).
 | ADR dimension: `adr_full_data` | 5,410,155 | 453,039 |
 | Reaction dimension: `standard_reaction_full_data` | 5,410,155 | 453,039 |
 | Drug dimension: `drug_full_data` | 4,944 | 2,881 |
-| S08 enriched drugs (main) | 85,267 | 22,437 |
-| S08 quarantine drugs | 6,221 | 1,747 |
+| S07 enriched drugs (main) | 85,267 | 22,437 |
+| S07 quarantine drugs | 6,221 | 1,747 |
 
 ### Unique entities (Adult fact)
 
@@ -495,10 +495,10 @@ One row = one unique **(safetyreportid, reaction_meddrapt)**.
 
 2. **Multi-ingredient `ingredient` strings:** When a drug's `ingredient` contains multiple substances (joined by ` / `), it reflects the best-fit RxNorm ingredient set for that brand name, produced by the MIN-combined name selection logic in S09.
 
-3. **`mapping_method` diversity:** The S08 cascade produces ~2,000+ distinct `mapping_method` values (mostly `approx:<name>` and `kegg:<id>:<inn>` variants). Users can group by prefix (`basename`, `ingredients`, `approx`, `kegg`, etc.) for quality stratification.
+3. **`mapping_method` diversity:** The S07 cascade produces ~2,000+ distinct `mapping_method` values (mostly `approx:<name>` and `kegg:<id>:<inn>` variants). Users can group by prefix (`basename`, `ingredients`, `approx`, `kegg`, etc.) for quality stratification.
 
-4. **Quarantine drugs:** ~6,200 adult and ~1,750 pediatric drug name rows were quarantined in S08 (no RxCUI resolved or identified as non-drug placeholder). These are saved under `data/staging/s08_enrich_drug_identifiers/quarantine/` for manual review and are excluded from the deliverable files.
+4. **Quarantine drugs:** ~6,200 adult and ~1,750 pediatric drug name rows were quarantined in S07 (no RxCUI resolved or identified as non-drug placeholder). These are saved under `data/staging/s07_enrich_drug_identifiers/quarantine/` for manual review and are excluded from the deliverable files.
 
-5. **MedDRA coverage:** 100% of rows in the output fact table are matched to a MedDRA PT (enforced by S09 inner join). Only 1,640 distinct PTs appear in the adult cohort and 453,039 unique (report, PT) ADR records.
+5. **MedDRA coverage:** 100% of rows in the output fact table are matched to a MedDRA PT (enforced by S08 inner join). Only 1,640 distinct PTs appear in the adult cohort and 453,039 unique (report, PT) ADR records.
 
-6. **ing_source provenance:** The `ing_source` column in S08 staging traces how the `ingredients` field was populated (`faers` = from FAERS active_substance, `llm` = LLM extraction, `bracket` = parenthetical fallback, `rxnav_*`/`rxnorm_enriched` = backfilled by S08 RxNorm path). This column does not propagate to the final output files (S09/S10).
+6. **ing_source provenance:** The `ing_source` column in S07 staging traces how the `ingredients` field was populated (`faers` = from FAERS active_substance, `llm` = LLM extraction, `bracket` = parenthetical fallback, `rxnav_*`/`rxnorm_enriched` = backfilled by S07 RxNorm path). This column does not propagate to the final output files (S09/S10).

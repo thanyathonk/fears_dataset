@@ -9,7 +9,7 @@
 #SBATCH --output=logs/slurm_s09_%j.out
 #SBATCH --error=logs/slurm_s09_%j.err
 
-# S09 — Final 3-way merge and reporting
+# S09 — Package output dimension tables
 # Usage: sbatch scripts/slurm_stages/run_s09.sh
 
 set -euo pipefail
@@ -21,11 +21,11 @@ conda activate "${CONDA_ENV:-fulldata}"
 export PYTHONUNBUFFERED=1
 
 echo "=========================================="
-echo "Stage: s09_finalize_merge_and_report"
+echo "Stage: s09_package_deliverables"
 echo "Start: $(date)"
 echo "=========================================="
 
-python -m src.cli run-stage s09_finalize_merge_and_report
+python -m src.cli run-stage s09_package_deliverables
 
 echo "=========================================="
 echo "Done:  $(date)"

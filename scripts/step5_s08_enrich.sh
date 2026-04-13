@@ -42,7 +42,7 @@ echo "=========================================="
 echo ""
 
 # Check prerequisites
-S07B_DIR="data/staging/s07b_llm_clean"
+S07B_DIR="data/staging/s06b_llm_clean"
 if [ ! -d "${S07B_DIR}" ] || [ -z "$(ls -A ${S07B_DIR} 2>/dev/null)" ]; then
     echo "❌ ERROR: S07b output not found: ${S07B_DIR}"
     echo "   Please run Step 4 (S07b LLM cleaning) first."
@@ -74,7 +74,7 @@ echo "=========================================="
 echo "✅ Step 5 (S08) complete — $(date)"
 echo "=========================================="
 echo ""
-echo "Output: data/staging/s08_enrich_drug_identifiers/"
+echo "Output: data/staging/s07_enrich_drug_identifiers/"
 echo ""
 echo "Next: Step 6 – S09 + S10 (after S07b and S08 are BOTH done)"
 echo "  bash scripts/run_s09_s10.sh"

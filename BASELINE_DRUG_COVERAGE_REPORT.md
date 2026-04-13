@@ -12,10 +12,10 @@
 |------|------|--------|---------|
 | adult_events_full_data.parquet | `data/staging/s03_join_partition_age/` | ✅ Present | Record-level drug rows (Adult) |
 | pediatric_events_full_data.parquet | `data/staging/s03_join_partition_age/` | ✅ Present | Record-level drug rows (Pediatric) |
-| adult_drugs_clean_full_data.parquet | `data/staging/s07b_llm_clean/` | ✅ Present | Unique mapping candidates (Adult) |
-| pediatric_drugs_clean_full_data.parquet | `data/staging/s07b_llm_clean/` | ✅ Present | Unique mapping candidates (Pediatric) |
-| adult_drugs_enriched_final_full_data.parquet | `data/staging/s08_enrich_drug_identifiers/` | ✅ Present | Final mapping with rxcui/ingredients (Adult) |
-| pediatric_drugs_enriched_final_full_data.parquet | `data/staging/s08_enrich_drug_identifiers/` | ✅ Present | Final mapping with rxcui/ingredients (Pediatric) |
+| adult_drugs_clean_full_data.parquet | `data/staging/s06b_llm_clean/` | ✅ Present | Unique mapping candidates (Adult) |
+| pediatric_drugs_clean_full_data.parquet | `data/staging/s06b_llm_clean/` | ✅ Present | Unique mapping candidates (Pediatric) |
+| adult_drugs_enriched_final_full_data.parquet | `data/staging/s07_enrich_drug_identifiers/` | ✅ Present | Final mapping with rxcui/ingredients (Adult) |
+| pediatric_drugs_enriched_final_full_data.parquet | `data/staging/s07_enrich_drug_identifiers/` | ✅ Present | Final mapping with rxcui/ingredients (Pediatric) |
 
 ### Files Not Present (Pipeline Design)
 
@@ -26,7 +26,7 @@
 | adult_drug_mapping_input.parquet | `data/staging/s03_join_partition_age/` | Depends on drug_mapping_input |
 | pediatric_drug_mapping_input.parquet | `data/staging/s03_join_partition_age/` | Depends on drug_mapping_input |
 
-**Current flow:** S03 events → S07 unique drugs → S07b clean → S08 enrich. Coverage is computed from events + enriched outputs.
+**Current flow:** S03 events → S06 unique drugs → S06b clean → S07 enrich. Coverage is computed from events + enriched outputs.
 
 ---
 
@@ -36,7 +36,7 @@
 |-------|-------------|------------|-------------|
 | **Record-level** | Drug rows (report × drug × reaction) | Rows with valid `medicinal_product` | Total drug rows |
 | **Record-level (mapped)** | Drug rows that map to RxCUI | Rows whose `medicinal_product` has rxcui in enriched | Total drug rows |
-| **Unique mapping record-level** | Distinct drug names sent to mapping | Unique `medicinal_product` in S07b | Same as unique medicinal_product |
+| **Unique mapping record-level** | Distinct drug names sent to mapping | Unique `medicinal_product` in S06b | Same as unique medicinal_product |
 | **Unique medicinal_product-level** | Distinct drug names | Unique `medicinal_product` in events | — |
 | **Input field coverage** | Records with non-empty medicinal_product | Rows with non-null, non-empty `medicinal_product` | Total rows |
 | **Final mapping coverage** | Unique drugs with RxCUI | Enriched rows with valid `rxcui` | Total unique drugs in enriched |

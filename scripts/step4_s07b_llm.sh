@@ -1,9 +1,9 @@
 #!/bin/bash
 # Step 4 – S07b: in-process LLM drug decomposition + merge (single stage).
 #
-# Runs ``python -m src.cli run-stage s07b_llm_clean`` — loads Qwen inside
-# ``src/stages/s07b_llm_clean.py``, reads ``s07_split_drug/*_drugs_full_data.parquet``,
-# writes ``s07b_llm_clean/*_drugs_clean_full_data.parquet``.
+# Runs ``python -m src.cli run-stage s06b_llm_clean`` — loads Qwen inside
+# ``src/stages/s06b_llm_clean.py``, reads ``s06_split_drug/*_drugs_full_data.parquet``,
+# writes ``s06b_llm_clean/*_drugs_clean_full_data.parquet``.
 #
 # Requires GPU (CUDA), torch, transformers. Submit with sbatch or run locally.
 #
@@ -11,7 +11,7 @@
 #   sbatch scripts/step4_s07b_llm.sh
 #   bash scripts/step4_s07b_llm.sh
 
-#SBATCH --job-name=s07b_llm_clean
+#SBATCH --job-name=s06b_llm_clean
 #SBATCH --output=logs/step4_s07b_%j.out
 #SBATCH --partition=gpu-cluster
 #SBATCH --gres=gpu:2
@@ -61,9 +61,9 @@ fi
 
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
-python -m src.cli run-stage s07b_llm_clean --run-id "${RUN_ID}_s07b" \
+python -m src.cli run-stage s06b_llm_clean --run-id "${RUN_ID}_s07b" \
     2>&1 | tee "${LOG_DIR}/s07b_llm.log"
 
 echo ""
 echo "✅ Step 4 complete — $(date)"
-echo "Output: data/staging/s07b_llm_clean/"
+echo "Output: data/staging/s06b_llm_clean/"

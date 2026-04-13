@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 # =========================
 logger.info("Loading dataset")
 ds = pd.read_parquet(
-    "/ist/users/thanyathonk/thanyathonk_bak/fears_dataset/data/staging/s07_split_drug/pediatric_drugs_full_data.parquet"
+    "/ist/users/thanyathonk/thanyathonk_bak/fears_dataset/data/staging/s06_split_drug/pediatric_drugs_full_data.parquet"
 )
 
 assert "medicinal_product" in ds.columns

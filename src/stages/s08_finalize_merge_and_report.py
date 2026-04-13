@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Stage S09 – Final merge, filtering, and reporting outputs.
+"""Stage S08 – Final merge, filtering, and reporting outputs.
 
 Filtering criteria (moved from S09 for early filtering):
 1. Suspect drugs only (drug_characterization) - MOVED TO S03
@@ -223,7 +223,7 @@ def _log_box(cohort: str, title: str, **fields: Any) -> None:
     lines = [f"{name}: {_format_value(value)}" for name, value in fields.items()]
     width = max(len(title), *(len(line) for line in lines)) if lines else len(title)
     border = "─" * (width + 2)
-    prefix = f"[S09][{cohort}] "
+    prefix = f"[S08][{cohort}] "
     rows = [
         prefix + "┌" + border + "┐",
         prefix + "│ " + title.ljust(width) + " │",
@@ -252,8 +252,8 @@ def _apply_meddra_filters(frame: pl.LazyFrame) -> pl.LazyFrame:
 
 def _finalize_cohort_polars_batched(cohort: str, ctx: PipelineContext) -> Dict[str, int]:
     clean_dir = stage_output_path(ctx, "s03_join_partition_age")
-    enrich_dir = stage_output_path(ctx, "s08_enrich_drug_identifiers")
-    mapping_dir = stage_output_path(ctx, "s06_map_omop_meddra")
+    enrich_dir = stage_output_path(ctx, "s07_enrich_drug_identifiers")
+    mapping_dir = stage_output_path(ctx, "s05_map_omop_meddra")
 
     clean_path = clean_dir / f"{cohort}_events_full_data.parquet"
     _enriched_final = enrich_dir / f"{cohort}_drugs_enriched_final_full_data.parquet"
@@ -367,11 +367,11 @@ def _finalize_cohort_polars_batched(cohort: str, ctx: PipelineContext) -> Dict[s
     # Load PT->SOC dictionary (Title Case mapping from Stage 6)
     soc_dict_df = pl.read_parquet(str(dict_path))
     logger.info(
-        f"[S09][{cohort}] Loaded PT-SOC dictionary: {soc_dict_df.height} unique PT terms"
+        f"[S08][{cohort}] Loaded PT-SOC dictionary: {soc_dict_df.height} unique PT terms"
     )
     
     logger.info(
-        f"[S09][{cohort}] Quality filters: "
+        f"[S08][{cohort}] Quality filters: "
         f"receive_date in [{START_YEAR},{END_YEAR}], "
         f"Suspect drugs only, "
         f"Excluded reporters: {', '.join(EXCLUDED_REPORTERS)}"
@@ -396,7 +396,7 @@ def _finalize_cohort_polars_batched(cohort: str, ctx: PipelineContext) -> Dict[s
     except Exception:
         pbar = None
 
-    tmp_root = stage_output_path(ctx, "s09_finalize_merge_and_report")
+    tmp_root = stage_output_path(ctx, "s08_finalize_merge_and_report")
     tmp_root.mkdir(parents=True, exist_ok=True)
     cohort_dir = tmp_root / cohort
     cohort_dir.mkdir(parents=True, exist_ok=True)
@@ -631,7 +631,7 @@ def run(ctx: PipelineContext) -> None:
 
         dq_summary_markdown(
             ctx,
-            "s09_finalize_merge_and_report",
+            "s08_finalize_merge_and_report",
             cohort,
             stats.get("clean_rows", 0),
             after,
@@ -674,8 +674,8 @@ def run(ctx: PipelineContext) -> None:
 
     write_manifest(
         ctx,
-        "s09_finalize_merge_and_report",
-        {"stage": "s09_finalize_merge_and_report", "cohorts": manifest_payload},
+        "s08_finalize_merge_and_report",
+        {"stage": "s08_finalize_merge_and_report", "cohorts": manifest_payload},
     )
     _log_box("summary", "Stage complete", output_root=ctx.config.paths.output_root)
 

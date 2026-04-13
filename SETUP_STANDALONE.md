@@ -85,7 +85,7 @@ cp -r /path/to/openFDA_drug_event full_dataset/data/
 3. ถ้ายังไม่รัน S01: รัน S01 ก่อน
 4. รัน pipeline ตาม [PIPELINE_GUIDE.md](PIPELINE_GUIDE.md)
 
-### หมายเหตุ: S07b (LLM)
+### หมายเหตุ: S06b (LLM)
 
 สคริปต์ `step4_s07b_llm.sh` ใช้ `MODEL_PATH` สำหรับ Qwen model (default: `/share/galaxy/thanyathon/models`). ถ้าย้ายเครื่อง ให้ตั้ง env ก่อนรัน:
 ```bash
