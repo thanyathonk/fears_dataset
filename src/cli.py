@@ -223,6 +223,30 @@ def package(
     _run_selected(["s10_package_deliverables"], run_id, None)
 
 
+@app.command(name="run-all")
+def run_all(
+    run_id: Optional[str] = typer.Option(None, help="Override run identifier."),
+    skip: Optional[str] = typer.Option(
+        None,
+        help="Comma-separated stage names to skip (e.g. 's01_fetch_openfda,s02_entity_format').",
+    ),
+) -> None:
+    """Run the full pipeline end-to-end (S01 through S10).
+
+    All stages run in order. Use --skip to skip specific stages (e.g. when
+    S01/S02 data already exists or S07b requires a GPU not available here).
+
+    Examples:
+        python -m src.cli run-all
+        python -m src.cli run-all --skip s01_fetch_openfda,s02_entity_format
+        python -m src.cli run-all --skip s01_fetch_openfda,s02_entity_format,s07b_llm_clean
+    """
+    skip_set = {s.strip() for s in skip.split(",") if s.strip()} if skip else set()
+    if skip_set:
+        console.print(f"[yellow]Skipping: {', '.join(sorted(skip_set))}[/yellow]")
+    _run_selected(ORDERED_STAGES, run_id, skip_set)
+
+
 @app.command()
 def test() -> None:
     """Execute pytest suite with coverage."""

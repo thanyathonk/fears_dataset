@@ -26,6 +26,7 @@ from src.utils.meddra import (
     EXCLUDED_SOCS,
     VOCAB_DIRNAME,
     concept_subset as _concept_subset,
+    get_vocab_version_info,
     load_concepts as _load_concepts,
     vocab_dir as _vocab_dir_shared,
 )
@@ -456,10 +457,17 @@ def run(ctx: PipelineContext) -> None:
     logger.info(f"  Hierarchy      : PT → HLT → HLGT → SOC  (4 levels via CONCEPT_RELATIONSHIP)")
     logger.info("")
 
+    vocab_version = get_vocab_version_info(vocab_dir)
+    logger.info(f"[S06b] Vocabulary version info: {vocab_version}")
+
     write_manifest(
         ctx,
         "s06b_map_omop_meddra_full_hierarchy",
-        {"stage": "s06b_map_omop_meddra_full_hierarchy", "cohorts": manifest_payload},
+        {
+            "stage": "s06b_map_omop_meddra_full_hierarchy",
+            "vocabulary": vocab_version,
+            "cohorts": manifest_payload,
+        },
     )
     logger.success("[S06b] Full-hierarchy MedDRA mapping complete")
 

@@ -641,10 +641,20 @@ def run(ctx: PipelineContext) -> None:
             },
         )
 
+        clean_rows = stats.get("clean_rows", 0)
+        output_coverage_pct = round(after / clean_rows * 100, 2) if clean_rows else 0
+        drug_mapping_pct = (
+            round(stats.get("unique_drug_after", 0) / stats.get("unique_drug_before", 1) * 100, 2)
+            if stats.get("unique_drug_before", 0) > 0
+            else 0
+        )
+
         manifest_payload[cohort] = {
             **stats,
             "meddra_mapped": mapped,
             "rxnorm_mapped": rxnorm_mapped,
+            "output_coverage_pct": output_coverage_pct,   # % of clean events that made it to output
+            "drug_mapping_pct": drug_mapping_pct,           # % of unique drugs successfully mapped
             "output_path": str(out_path),
         }
         finals[cohort] = after

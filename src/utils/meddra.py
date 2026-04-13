@@ -7,7 +7,10 @@ share exactly the same data-loading logic.
 
 from __future__ import annotations
 
+import os
+from datetime import datetime
 from pathlib import Path
+from typing import Dict
 
 import polars as pl
 from loguru import logger
@@ -98,3 +101,52 @@ def concept_subset(df: pl.DataFrame, cls: str, prefix: str) -> pl.DataFrame:
             pl.col("concept_class_id").alias(f"{prefix}_class"),
         )
     )
+
+
+def get_vocab_version_info(vocab_path: Path) -> Dict[str, str]:
+    """Extract OMOP vocabulary version metadata for reproducibility tracking.
+
+    Tries (in order):
+      1. VOCABULARY.csv — official OMOP version file (vocabulary_version column)
+      2. CONCEPT.csv file modification date — as fallback timestamp
+      3. Directory name — may contain version info
+
+    Returns a dict with keys like: vocabulary_id, vocabulary_version,
+    concept_file_modified, vocab_dir_name.
+    """
+    info: Dict[str, str] = {
+        "vocab_dir_name": vocab_path.name,
+    }
+
+    # Try VOCABULARY.csv (standard OMOP file with version info)
+    vocab_csv = vocab_path / "VOCABULARY.csv"
+    if vocab_csv.exists():
+        try:
+            df = pl.read_csv(
+                vocab_csv,
+                separator="\t",
+                infer_schema_length=0,
+                quote_char=None,
+                null_values="",
+                n_rows=50,  # Only need first few rows
+            )
+            if "vocabulary_id" in df.columns and "vocabulary_version" in df.columns:
+                for row in df.iter_rows(named=True):
+                    vid = row.get("vocabulary_id", "")
+                    ver = row.get("vocabulary_version", "")
+                    if vid and "MedDRA" in str(vid):
+                        info["meddra_version"] = str(ver)
+                    elif vid and "SNOMED" in str(vid):
+                        info["snomed_version"] = str(ver)
+                    elif vid and "RxNorm" in str(vid) and "Extension" not in str(vid):
+                        info["rxnorm_version"] = str(ver)
+        except Exception as e:
+            logger.debug("Could not parse VOCABULARY.csv: %s", e)
+
+    # Fallback: CONCEPT.csv modification timestamp
+    concept_csv = vocab_path / "CONCEPT.csv"
+    if concept_csv.exists():
+        mtime = os.path.getmtime(concept_csv)
+        info["concept_file_modified"] = datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M:%S")
+
+    return info
