@@ -20,12 +20,18 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "${SLURM_SUBMIT_DIR:-$SCRIPT_DIR}"
 
+# Save positional args before conda activation —
+# conda's activate script reads $@ and will error on unexpected args like --skip
+_saved_args=("$@")
+set --
+
 source ~/miniforge3/bin/activate
 conda activate "${CONDA_ENV:-fulldata}"
 export PYTHONUNBUFFERED=1
 
-# Pass any extra arguments (e.g. --skip ...) to run-all
-EXTRA_ARGS="${@}"
+# Restore args
+set -- "${_saved_args[@]}"
+EXTRA_ARGS="${*}"
 
 echo "=========================================="
 echo "FULL PIPELINE RUN"
