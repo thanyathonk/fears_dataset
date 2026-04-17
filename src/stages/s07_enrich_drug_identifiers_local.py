@@ -152,9 +152,19 @@ RXNAV_CONCURRENCY = 5       # RxNav REST API
 CHEMBL_CONCURRENCY = 5      # ChEMBL EBI API
 KEGG_CONCURRENCY = 3        # KEGG REST API (lower limit — be gentle)
 
-RATE_LIMIT_SEMAPHORE = asyncio.Semaphore(RXNAV_CONCURRENCY)
-CHEMBL_SEMAPHORE = asyncio.Semaphore(CHEMBL_CONCURRENCY)
-KEGG_SEMAPHORE = asyncio.Semaphore(KEGG_CONCURRENCY)
+# NOTE: Semaphores are created inside run() (not at module level) to avoid
+# "bound to a different event loop" errors when asyncio.run() creates a new loop.
+RATE_LIMIT_SEMAPHORE: asyncio.Semaphore = None  # type: ignore[assignment]
+CHEMBL_SEMAPHORE: asyncio.Semaphore = None  # type: ignore[assignment]
+KEGG_SEMAPHORE: asyncio.Semaphore = None  # type: ignore[assignment]
+
+
+def _init_semaphores() -> None:
+    """Create semaphores inside the current event loop (called from run())."""
+    global RATE_LIMIT_SEMAPHORE, CHEMBL_SEMAPHORE, KEGG_SEMAPHORE
+    RATE_LIMIT_SEMAPHORE = asyncio.Semaphore(RXNAV_CONCURRENCY)
+    CHEMBL_SEMAPHORE = asyncio.Semaphore(CHEMBL_CONCURRENCY)
+    KEGG_SEMAPHORE = asyncio.Semaphore(KEGG_CONCURRENCY)
 
 # Local CID file paths (relative to project root)
 _DATA_DIR = Path(__file__).parents[2] / "data"
@@ -431,6 +441,9 @@ async def _enrich_names_direct(
                                                → lookup_hit = <pref_name>
       Step 6 – Fetch rxnorm_ingredients (only if RxCUI found)
     """
+
+    # Initialize semaphores inside the running event loop (avoids "bound to different loop" error)
+    _init_semaphores()
 
     rxnav_headers = {
         "User-Agent": "DrugPipeline/1.0 (mailto:tttccc4589@gmail.com)",
@@ -810,7 +823,10 @@ async def _enrich_names_direct(
                 )
 
             except Exception as exc:
-                logger.warning(f"[Local] Enrichment failed '{basename}': {exc}", exc_info=True)
+                # Use str(exc) in a separate variable to avoid loguru re-formatting
+                # crash when exc message contains curly braces (e.g. asyncio repr)
+                exc_msg = str(exc).replace("{", "{{").replace("}", "}}")
+                logger.warning(f"[Local] Enrichment failed '{basename}': {exc_msg}", exc_info=True)
                 results[basename] = EnrichmentResult(source="error", lookup_hit="not_found")
 
         results = {}
