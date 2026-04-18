@@ -1,6 +1,6 @@
 #!/bin/bash -l
 
-#SBATCH --job-name=jpt
+#SBATCH --job-name=phph
 #SBATCH --output=out.%j
 #SBATCH --nodes=1
 #SBATCH --partition=scads

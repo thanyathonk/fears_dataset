@@ -1,9 +1,14 @@
 #!/bin/bash
+# CPU-only (no GPU). --gres=gpu:0 keeps the job off GPU GRES.
+# Using "deadline" schedules sooner when "cpu" is full; jobs may run on any node in that
+# partition (including hosts that also have GPUs) but without allocating a GPU.
+# For compute-only nodes only, switch to: --partition=cpu (may queue longer).
 #SBATCH --job-name=pipeline_FD
-#SBATCH --partition=gpu-cluster
+#SBATCH --partition=deadline
+#SBATCH --account=scads
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=16
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:0
 #SBATCH --mem=300G
 #SBATCH --time=1-00:00:00
 #SBATCH --output=logs/slurm_pipeline_%j.out
