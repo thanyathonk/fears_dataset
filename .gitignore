@@ -59,8 +59,13 @@ configs/config.local.yaml
 
 # --- Jupyter: checkpoints & generated notebook outputs ---
 .ipynb_checkpoints/
-**/notebook/output/
-notebook/output/
+# Ignore notebook pipeline output except shared figures (PNG are ~MB total; CSV/data stay local).
+notebook/output/**
+!notebook/output/
+!notebook/output/figures/
+!notebook/output/figures/**
+# Re-exclude checkpoints inside figures (negation above would un-ignore them).
+notebook/output/figures/.ipynb_checkpoints/
 
 # --- Cluster / batch job spill (typical HPC stdout at repo root) ---
 /out.*
