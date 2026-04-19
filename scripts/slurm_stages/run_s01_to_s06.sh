@@ -15,27 +15,43 @@
 # Usage:
 #   sbatch scripts/slurm_stages/run_s01_to_s06.sh
 #   sbatch scripts/slurm_stages/run_s01_to_s06.sh --skip s01_fetch_openfda,s02_entity_format
+# (After --skip, pass only comma-separated stage ids — same as src.cli run-all --skip.)
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "${SLURM_SUBMIT_DIR:-$SCRIPT_DIR}"
-
 _saved_args=("$@")
 set --
+
 source ~/miniforge3/bin/activate
 conda activate "${CONDA_ENV:-fulldata}"
-set -- "${_saved_args[@]}"
-
 export PYTHONUNBUFFERED=1
-EXTRA_ARGS="${*}"
+
+# Restore args — optional: --skip stage1,stage2,... (must not concatenate "--skip" into the
+# comma-separated list or bash word-splitting turns extra stages into stray positional args.)
+set -- "${_saved_args[@]}"
+EXTRA_SKIP=""
+if [[ "${1:-}" == "--skip" ]]; then
+  shift
+  EXTRA_SKIP="${1:-}"
+else
+  EXTRA_SKIP="${*}"
+fi
+
+SKIP_BASE="s06b_llm_clean,s07_enrich_drug_identifiers,s08_finalize_merge_and_report,s09_package_deliverables"
+if [[ -n "${EXTRA_SKIP}" ]]; then
+  SKIP_ALL="${SKIP_BASE},${EXTRA_SKIP}"
+else
+  SKIP_ALL="${SKIP_BASE}"
+fi
 
 echo "============================================================"
 echo "BATCH 1: S01 → S06 (no internet needed)"
-echo "Skip:  ${EXTRA_ARGS:-none}"
+echo "Skip:  ${EXTRA_SKIP:-none}"
 echo "Start: $(date)"
 echo "============================================================"
 
-python -m src.cli run-all --skip s06b_llm_clean,s07_enrich_drug_identifiers,s08_finalize_merge_and_report,s09_package_deliverables${EXTRA_ARGS:+,$EXTRA_ARGS}
+python -m src.cli run-all --skip "${SKIP_ALL}"
 
 echo "============================================================"
 echo "BATCH 1 DONE: $(date)"

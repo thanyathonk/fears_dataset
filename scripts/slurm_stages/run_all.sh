@@ -1,8 +1,4 @@
 #!/bin/bash
-# CPU-only (no GPU). --gres=gpu:0 keeps the job off GPU GRES.
-# Using "deadline" schedules sooner when "cpu" is full; jobs may run on any node in that
-# partition (including hosts that also have GPUs) but without allocating a GPU.
-# For compute-only nodes only, switch to: --partition=cpu (may queue longer).
 #SBATCH --job-name=pipeline_FD
 #SBATCH --partition=deadline
 #SBATCH --account=scads
